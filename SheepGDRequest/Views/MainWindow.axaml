@@ -1,0 +1,396 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SheepGDRequest.ViewModels"
+        xmlns:models="using:SheepGDRequest.Models"
+        xmlns:conv="using:SheepGDRequest.Converters"
+        xmlns:i18n="using:SheepGDRequest.Helpers"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:SheepGDRequest.Views"
+        mc:Ignorable="d"
+        d:DesignWidth="1050" d:DesignHeight="720"
+        Width="1050" Height="720"
+        MinWidth="1050" MinHeight="720"
+        x:Class="SheepGDRequest.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="False"
+        Title="SheepGDRequest"
+        Icon="avares://SheepGDRequest/Assets/SheepGDrequestICON.ico"
+        WindowStartupLocation="Manual"
+        Topmost="{Binding SettingsVM.Settings.AlwaysOnTop}"
+        Background="#11111B">
+
+    <Window.Styles>
+        <Style Selector="Button.MenuBtn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="50"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="Button.MenuBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#313244"/>
+        </Style>
+
+        <Style Selector="Button.ActionBtn">
+            <Setter Property="Width" Value="70"/>
+            <Setter Property="Height" Value="54"/>
+            <Setter Property="Background" Value="#181825"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Padding" Value="10"/>
+        </Style>
+        <Style Selector="Button.ActionBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#313244"/>
+        </Style>
+        <Style Selector="Button.ActionBtn Image">
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="Button.ListBtn">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Margin" Value="2,0"/>
+        </Style>
+        <Style Selector="Button.ListBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#313244"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid ColumnDefinitions="Auto, *">
+
+        <!-- Ancho del menú lateral: 200 desplegado y 50 plegado (MenuWidth). -->
+        <Border Grid.Column="0" Width="{Binding MenuWidth}" Background="#181825" BorderBrush="#313244" BorderThickness="0,0,1,0">
+
+            <!-- Transición de 0,2 s al plegar o desplegar el menú. -->
+            <Border.Transitions>
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="SineEaseInOut"/>
+                </Transitions>
+            </Border.Transitions>
+
+            <Grid RowDefinitions="Auto, *">
+
+                <!-- 1. BOTONES DEL MENÚ (fila superior) -->
+                <StackPanel Grid.Row="0" Spacing="1" Margin="0,15,0,5">
+                    <Button Classes="MenuBtn" ToolTip.Tip="{i18n:Tr UI_MenuToggle}" Command="{Binding ToggleMenuCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Classes="IconoMenu" Source="/Assets/menu.png"/>
+                            <TextBlock Text="{i18n:Tr UI_MenuCollapse}" IsVisible="{Binding IsMenuExpanded}" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="16" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="MenuBtn" ToolTip.Tip="{i18n:Tr UI_MenuLevels}" Command="{Binding ShowMainViewCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Classes="IconoMenu" Source="/Assets/list.png"/>
+                            <TextBlock Text="{i18n:Tr UI_MenuLevels}" IsVisible="{Binding IsMenuExpanded}" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="14" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="MenuBtn" ToolTip.Tip="{i18n:Tr UI_MenuSettings}" Command="{Binding ShowSettingsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Classes="IconoMenu" Source="/Assets/settings.png"/>
+                            <TextBlock Text="{i18n:Tr UI_MenuSettings}" IsVisible="{Binding IsMenuExpanded}" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="14" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="MenuBtn" ToolTip.Tip="{i18n:Tr UI_MenuConsole}" Command="{Binding ToggleConsoleCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Classes="IconoMenu" Source="/Assets/console.png"/>
+                            <TextBlock Text="{i18n:Tr UI_MenuConsole}" IsVisible="{Binding IsMenuExpanded}" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="14" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- 2. PANEL DE NOTIFICACIONES (fila inferior) -->
+                <!-- Solo se muestra con el menú desplegado. -->
+                <DockPanel Grid.Row="1" IsVisible="{Binding IsMenuExpanded}">
+
+                    <!-- Lista de notificaciones -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  BorderThickness="0,0,0,0" BorderBrush="#313244">
+
+                        <ItemsControl ItemsSource="{Binding NotificationService.Notifications}"
+                                      Background="#1e1e2e"
+                                      Margin="5,0,5,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="models:NotificationModel">
+
+                                    <!-- Borde del color del tipo de notificación -->
+                                    <Border Background="#313244" CornerRadius="0" Margin="5,8,5,0" Padding="10"
+                                            BorderThickness="3,0,0,0"
+                                            BorderBrush="{Binding Type, Converter={x:Static conv:NotificationColorConverter.Instance}}">
+
+                                        <TextBlock i18n:NotificationRichTextHelper.Data="{Binding}"
+                                                   Foreground="#E0E0E0"
+                                                   FontSize="13"
+                                                   TextWrapping="Wrap"
+                                                   Margin="-2,3,-2,3"/>
+                                    </Border>
+
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </ScrollViewer>
+                </DockPanel>
+
+            </Grid>
+        </Border>
+
+        <!-- ========================================== -->
+    <!-- PANTALLAS (COLUMNA DERECHA)                -->
+    <!-- ========================================== -->
+    <Grid Grid.Column="1">
+
+        <!-- PANTALLA 1: VISTA PRINCIPAL (Banner + Lista) -->
+        <Grid RowDefinitions="260, *" IsVisible="{Binding IsMainViewVisible}">
+
+            <!-- ================= BANNER ================= -->
+            <Panel Grid.Row="0">
+                <!-- Miniatura del nivel actual; su opacidad se elige en Ajustes. -->
+                <Image Stretch="UniformToFill"
+                       Source="{Binding BackgroundBitmap}"
+                       Opacity="{Binding SettingsVM.Settings.ThumbnailOpacity, Converter={x:Static conv:PercentageToDoubleConverter.Instance}}" />
+
+                <!-- Capa negra fija al 40 % sobre la miniatura -->
+                <Rectangle Fill="#000000" Opacity="0.40" />
+
+                <Grid ColumnDefinitions="*, Auto, Auto" Margin="20">
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+
+                        <TextBlock Text="{Binding CurrentLevel.Name}"
+                                   FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                   FontSize="48" Foreground="White" TextTrimming="CharacterEllipsis"
+                                   ClipToBounds="False" Padding="0,14,0,0" Margin="0,-14,0,0"/>
+
+                        <!-- Autor del nivel -->
+                        <TextBlock FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                   FontSize="20" Foreground="#E0E0E0"
+                                   ClipToBounds="False" Padding="0,8,0,0" Margin="0,-8,0,10">
+                            <Run Text="{i18n:Tr UI_By}" /><Run Text=" "/><Run Text="{Binding CurrentLevel.Author}" />
+                        </TextBlock>
+
+                        <Grid ColumnDefinitions="Auto, 25, Auto, 20, Auto, 25, Auto" Margin="0,5,0,0">
+
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <Image Source="/Assets/GDassets/other_icons/aredl.png" Width="90"/>
+                                <TextBlock Text="{Binding CurrentLevel.AredlRank, Converter={x:Static conv:EmptyToDashConverter.Instance}}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="20" Foreground="White" TextAlignment="Center" ClipToBounds="False" Padding="0,6,0,0" Margin="0,-2,0,0"/>
+                            </StackPanel>
+
+                            <Grid Grid.Column="2" RowDefinitions="Auto, Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Image Source="/Assets/GDassets/icons/download.png" Height="40" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding CurrentLevel.Downloads}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="14" Foreground="White" VerticalAlignment="Center" ClipToBounds="False" Padding="0,5,0,0"/>
+                                </StackPanel>
+                                <!-- Likes llega siempre en positivo: el signo lo da IsDislike,
+                                     que elige el icono, como en GD. -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                    <Image Source="/Assets/GDassets/icons/like.png" Height="40" Margin="0,0,8,0" IsVisible="{Binding !CurrentLevel.IsDislike, FallbackValue=True}"/>
+                                    <Image Source="/Assets/GDassets/icons/dislike.png" Height="40" Margin="0,0,8,0" IsVisible="{Binding CurrentLevel.IsDislike, FallbackValue=False}"/>
+                                    <TextBlock Text="{Binding CurrentLevel.Likes}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="14" Foreground="White" VerticalAlignment="Center" ClipToBounds="False" Padding="0,5,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Column="4" RowDefinitions="Auto, Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Image Source="/Assets/GDassets/icons/time.png" Height="40" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding CurrentLevel.Length}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="14" Foreground="White" VerticalAlignment="Center" ClipToBounds="False" Padding="0,5,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                    <Image Source="/Assets/GDassets/icons/orbs.png" Height="40" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding CurrentLevel.Orbs}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="14" Foreground="White" VerticalAlignment="Center" ClipToBounds="False" Padding="0,5,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Grid.Column="6" Orientation="Vertical" VerticalAlignment="Center">
+                                <!-- Monedas: se muestran tantas como tenga el nivel -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Image IsVisible="{Binding CurrentLevel.HasCoin1}" Source="/Assets/GDassets/icons/silvercoin.png" Height="40" Margin="2,0"/>
+                                    <Image IsVisible="{Binding CurrentLevel.HasCoin2}" Source="/Assets/GDassets/icons/silvercoin.png" Height="40" Margin="2,0"/>
+                                    <Image IsVisible="{Binding CurrentLevel.HasCoin3}" Source="/Assets/GDassets/icons/silvercoin.png" Height="40" Margin="2,0"/>
+                                </StackPanel>
+
+                                <!-- Estado de las peticiones: abiertas o cerradas -->
+                                <TextBlock Text="{i18n:Tr UI_RequestsEnabled}"
+                                           IsVisible="{Binding SettingsVM.Settings.IsRequestsEnabled}"
+                                           FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                           FontSize="11" Foreground="White" TextAlignment="Center" Margin="0,10,0,0" ClipToBounds="False"/>
+
+                                <TextBlock Text="{i18n:Tr UI_RequestsDisabled}"
+                                           IsVisible="{Binding !SettingsVM.Settings.IsRequestsEnabled}"
+                                           FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                           FontSize="11" Foreground="Gray" TextAlignment="Center" Margin="0,10,0,0" ClipToBounds="False"/>
+                                <!-- Interruptor general de peticiones -->
+                                <ToggleSwitch IsChecked="{Binding SettingsVM.Settings.IsRequestsEnabled}"
+                                              Command="{Binding ToggleRequestsStateCommand}"
+                                              HorizontalAlignment="Center" Margin="0,2,0,0"
+                                              OnContent="" OffContent=""/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,15,0,0" VerticalAlignment="Center">
+                            <Image Source="{Binding CurrentLevel.PlatformIconPath, Converter={x:Static conv:StringToBitmapConverter.Instance}}" Height="26" Margin="0,0,10,0"/>
+                            <!-- Quién pidió el nivel -->
+                            <TextBlock FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                       FontSize="22" Foreground="White" VerticalAlignment="Center"
+                                       ClipToBounds="False" Padding="0,8,0,0" Margin="0,-4,0,0">
+                                <Run Text="{i18n:Tr UI_SendBy}" /><Run Text=" "/><Run Text="{Binding CurrentLevel.RequesterName}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,25,0">
+                        <Grid Width="95" Height="95">
+                            <Image IsVisible="{Binding CurrentLevel.HasFeatureGlow}"
+                                   Source="{Binding CurrentLevel.FeatureGlowPath, Converter={x:Static conv:StringToBitmapConverter.Instance}}"
+                                   Stretch="Uniform"/>
+
+                            <Image Source="{Binding CurrentLevel.DifficultyFacePath, Converter={x:Static conv:StringToBitmapConverter.Instance}}"
+                                   Height="70" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,0"/>
+                        </Grid>
+                        <TextBlock Text="{Binding CurrentLevel.DifficultyName}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="16" Foreground="White" TextAlignment="Center" Margin="0,-3,0,0" ClipToBounds="False" Padding="0,4,0,0"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+                            <TextBlock Text="{Binding CurrentLevel.Stars}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="14" Foreground="#FFD700" VerticalAlignment="Center" ClipToBounds="False" Padding="0,4,0,0"/>
+                            <Image Source="{Binding CurrentLevel.Length, Converter={x:Static conv:StarOrMoonConverter.Instance}}" Height="14" Margin="4,0,0,0"/>
+                        </StackPanel>
+
+                        <Button Background="{Binding CurrentLevel.GddlTierColor}" CornerRadius="6" MinWidth="45" Height="45" Padding="10,0" HorizontalAlignment="Center" Margin="0,12,0,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                            <TextBlock Text="{Binding CurrentLevel.GddlTier, Converter={x:Static conv:EmptyToDashConverter.Instance}}" FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab" FontSize="22" Foreground="WhiteSmoke" ClipToBounds="False" Padding="0,8,0,0" Margin="0,-4,0,0" TextAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Tiempo restante del auto-skip -->
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Margin="0, 10, 10, 0"
+                            Background="#AA000000" CornerRadius="8"
+                            IsVisible="{Binding IsTimerVisible}">
+
+                        <StackPanel Orientation="Horizontal" Margin="10, 5">
+                            <Image Classes="Icono" Width="16" Height="16"
+                                   Source="/Assets/GDassets/icons/time.png" Margin="0,0,5,0"/>
+                            <TextBlock Text="{Binding TimeRemainingText}"
+                                       Foreground="White" FontWeight="Bold" FontSize="16"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <UniformGrid Grid.Column="2" Columns="2" Rows="3" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_CopySong}" Command="{Binding CopySongIdCommand}" CommandParameter="{Binding CurrentLevel}">
+                            <Image Source="/Assets/sound.png"/>
+                        </Button>
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_CopyId}" Command="{Binding CopyIdCommand}" CommandParameter="{Binding CurrentLevel}">
+                            <Image Source="/Assets/copy.png"/>
+                        </Button>
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_Previous}" Command="{Binding PreviousLevelCommand}">
+                            <Image Source="/Assets/left_arrow.png"/>
+                        </Button>
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_Next}" Command="{Binding NextLevelCommand}">
+                            <Image Source="/Assets/right_arrow.png"/>
+                        </Button>
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_Random}" Command="{Binding RandomLevelCommand}">
+                            <Image Source="/Assets/dice.png"/>
+                        </Button>
+                        <Button Classes="ActionBtn" ToolTip.Tip="{i18n:Tr UI_Remove}" Command="{Binding RemoveCurrentLevelCommand}">
+                            <Image Source="/Assets/trash.png"/>
+                        </Button>
+                    </UniformGrid>
+                </Grid>
+            </Panel>
+
+            <!-- ================= COLA ================= -->
+            <Border Grid.Row="1" Background="#1E1E2E" BorderBrush="#313244" BorderThickness="0,2,0,0">
+                <ListBox ItemsSource="{Binding RequestQueue}" Background="Transparent" Foreground="White">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="models:LevelRequestModel">
+                            <Grid ColumnDefinitions="Auto, 15, *, Auto" Margin="15,10">
+
+                                <Grid Grid.Column="0" Width="55" Height="30" VerticalAlignment="Center">
+                                    <Image IsVisible="{Binding HasFeatureGlow}"
+                                           Source="{Binding FeatureGlowPath, Converter={x:Static conv:StringToBitmapConverter.Instance}}"
+                                           Height="100"
+                                           ClipToBounds="False"/>
+                                    <Image Source="{Binding DifficultyFacePath, Converter={x:Static conv:StringToBitmapConverter.Instance}}"
+                                           Height="40" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,0"
+                                           ClipToBounds="False"/>
+                                </Grid>
+
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}"
+                                               FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                               FontSize="25"
+                                               ClipToBounds="False" />
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <!-- Autor del nivel -->
+                                        <TextBlock Foreground="Gold"
+                                                   FontFamily="avares://SheepGDRequest/Assets/pusab.otf#Pusab"
+                                                   FontSize="17"
+                                                   ClipToBounds="False"
+                                                   Margin="0,5,0,0">
+                                            <Run Text="{i18n:Tr UI_By}" /><Run Text=" "/><Run Text="{Binding Author}" />
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <Image Source="{Binding PlatformIconPath, Converter={x:Static conv:StringToBitmapConverter.Instance}}"
+                                               Height="14" Margin="0,0,6,0"/>
+
+                                        <!-- Quién pidió el nivel -->
+                                        <TextBlock Foreground="#AAAAAA"
+                                                   FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf"
+                                                   FontSize="14"
+                                                   ClipToBounds="False"
+                                                   Margin="0,2,0,0">
+                                            <Run Text="{i18n:Tr UI_SendBy}" /><Run Text=" "/><Run Text="{Binding RequesterName}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Classes="ListBtn" ToolTip.Tip="{i18n:Tr UI_CopyId}" Command="{Binding $parent[Window].DataContext.CopyIdCommand}" CommandParameter="{Binding}"><Image Source="/Assets/copy.png"/></Button>
+                                    <Button Classes="ListBtn" ToolTip.Tip="{i18n:Tr UI_CopySong}" Command="{Binding $parent[Window].DataContext.CopySongIdCommand}" CommandParameter="{Binding}"><Image Source="/Assets/sound.png"/></Button>
+                                    <Button Classes="ListBtn" ToolTip.Tip="{i18n:Tr UI_Priority}" Command="{Binding $parent[Window].DataContext.PrioritizeLevelCommand}" CommandParameter="{Binding}"><Image Source="/Assets/up_arrow.png"/></Button>
+                                    <Button Classes="ListBtn" ToolTip.Tip="{i18n:Tr UI_Remove}" Command="{Binding $parent[Window].DataContext.RemoveLevelCommand}" CommandParameter="{Binding}"><Image Source="/Assets/trash.png"/></Button>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+        </Grid>
+
+        <!-- PANTALLA 2: CONSOLA DE DEPURACIÓN -->
+        <Border Background="#11111B" IsVisible="{Binding IsConsoleVisible}">
+            <Grid RowDefinitions="Auto, *">
+                <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="20">
+                    <TextBlock Grid.Column="0" Text="{i18n:Tr UI_ConsoleTitle}" Foreground="#00FF00" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="18" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Command="{Binding ToggleConsoleCommand}"
+                            Background="#313244" Foreground="White" FontWeight="Bold"
+                            CornerRadius="4" Padding="15,8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Image Classes="Icono" Source="/Assets/list.png"/>
+                            <TextBlock Text="{i18n:Tr UI_ConsoleBack}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <ListBox Grid.Row="1" ItemsSource="{Binding DebugLogs}" Background="#0A0A0F" Margin="20,0,20,20" BorderThickness="1" BorderBrush="#313244">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <SelectableTextBlock Text="{Binding}" FontFamily="Monospace" FontSize="14" Foreground="#00FF00" TextWrapping="Wrap" Margin="0,2"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+        <!-- PANTALLA 3: VISTA DE CONFIGURACIÓN -->
+        <Border IsVisible="{Binding IsSettingsVisible}">
+            <views:SettingsView DataContext="{Binding SettingsVM}" />
+        </Border>
+    </Grid>
+    </Grid>
+</Window>

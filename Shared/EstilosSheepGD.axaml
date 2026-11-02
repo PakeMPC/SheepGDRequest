@@ -1,0 +1,195 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Estilos compartidos por SheepGDRequest y SheepGDEditor. Los dos .csproj enlazan este
+        archivo y lo compilan dentro de cada aplicación, así que cada una carga su propia copia.
+
+        Aquí no puede haber URI avares:// con nombre de ensamblado, porque no resolverían desde
+        el otro proyecto. Las fuentes llegan como recurso: cada App.axaml define FuenteTitulos y
+        FuenteGD con su propio ensamblado.
+
+        Por eso se usa DynamicResource y no StaticResource: este archivo se carga con
+        StyleInclude antes de que Application.Resources esté resuelto.
+    -->
+
+    <!-- FUENTE BASE DE TODA LA INTERFAZ -->
+    <!--
+        El selector es :is(TopLevel) y no Window a propósito: los desplegables, los menús
+        contextuales y los flyouts se dibujan en su propio PopupRoot, que no cuelga del árbol
+        visual de la ventana. Con "Window" heredarían la fuente de Fluent, y la interfaz
+        mezclaría dos tipografías. PopupRoot sí es un TopLevel.
+
+        El valor apunta directamente al .ttf, sin #NombreDeFamilia. Con "#Open Sans" habría que
+        acertar el nombre interno exacto de la fuente, y si no coincide, falla sin avisar.
+    -->
+    <Style Selector=":is(TopLevel)">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulos}"/>
+    </Style>
+
+    <!-- ICONOS DE INTERFAZ -->
+    <!--
+        Los iconos salen de Assets, nunca de emojis del sistema (la misma regla que sigue el mod
+        de Geode): el aspecto de un glifo lo decide el sistema. Windows tiene dos familias para
+        los mismos puntos de código, Segoe UI Symbol (contorno) y Segoe UI Emoji (color), y dos
+        pasadas de dibujado no tienen por qué elegir la misma. Entre equipos distintos, la
+        diferencia es aún mayor.
+
+        Los emojis que son texto (las notificaciones y UI_DiscordOnlyChecked, que enumera con
+        qué emojis aprueba un moderador) se mantienen: ahí el emoji es el significado.
+    -->
+    <Style Selector="Image.Icono">
+        <Setter Property="Width" Value="20"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- Columna de 50 px del menú lateral: el icono queda centrado en ella cuando el menú
+         está plegado. -->
+    <Style Selector="Image.IconoMenu">
+        <Setter Property="Width" Value="50"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- TÍTULOS DE SECCIÓN -->
+    <Style Selector="TextBlock.SectionTitle">
+        <Setter Property="FontFamily" Value="{DynamicResource FuenteTitulos}"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="Foreground" Value="#89B4FA"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+
+    <!-- CAJAS DE TEXTO Y SELECTORES -->
+    <Style Selector="TextBox, ComboBox">
+        <!-- Gris azulado: más claro que el fondo, más oscuro que la tarjeta -->
+        <Setter Property="Background" Value="#1A1A27"/>
+        <Setter Property="BorderBrush" Value="#313244"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,8"/>
+    </Style>
+
+    <!-- CAJAS NUMÉRICAS -->
+    <Style Selector="NumericUpDown">
+        <Setter Property="Background" Value="#1A1A27"/>
+        <Setter Property="BorderBrush" Value="#313244"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+
+    <!-- El TextBox interno usa el fondo del contenedor, sin márgenes que aplasten el texto -->
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="MinWidth" Value="15"/>
+    </Style>
+
+    <!-- Al recibir el foco, el TextBox interno sigue transparente (si no, Fluent le pone
+         un fondo negro mientras se escribe). -->
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="NumericUpDown:focus-within">
+        <Setter Property="BorderBrush" Value="#89B4FA"/>
+    </Style>
+
+    <!-- Botones a los lados ( < 3 > ) con bordes -->
+    <Style Selector="ButtonSpinner">
+        <Setter Property="Background" Value="#1A1A27"/>
+        <Setter Property="BorderBrush" Value="#313244"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        ClipToBounds="True">
+
+                    <Grid ColumnDefinitions="Auto, *, Auto">
+                        <RepeatButton Name="PART_DecreaseButton"
+                                      Grid.Column="0"
+                                      Content="&lt;"
+                                      Background="Transparent"
+                                      Foreground="White"
+                                      BorderThickness="0,0,1,0"
+                                      BorderBrush="#313244"
+                                      CornerRadius="0"
+                                      VerticalAlignment="Stretch"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Padding="4,0"/>
+
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Grid.Column="1"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Padding="0"
+                                          Margin="0"
+                                          HorizontalContentAlignment="Center"
+                                          VerticalContentAlignment="Center"/>
+
+                        <RepeatButton Name="PART_IncreaseButton"
+                                      Grid.Column="2"
+                                      Content="&gt;"
+                                      Background="Transparent"
+                                      Foreground="White"
+                                      BorderThickness="1,0,0,0"
+                                      BorderBrush="#313244"
+                                      CornerRadius="0"
+                                      VerticalAlignment="Stretch"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      Padding="4,0"/>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="NumericUpDown:focus-within /template/ ButtonSpinner">
+        <Setter Property="BorderBrush" Value="#89B4FA"/>
+    </Style>
+
+    <Style Selector="ButtonSpinner RepeatButton:pointerover">
+        <Setter Property="Background" Value="#202030"/>
+        <Setter Property="Foreground" Value="#89B4FA"/>
+    </Style>
+
+    <!-- HOVER Y FOCUS -->
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="#45475A"/>
+        <Setter Property="Background" Value="#202030"/>
+    </Style>
+    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+        <Setter Property="BorderBrush" Value="#45475A"/>
+        <Setter Property="Background" Value="#202030"/>
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="#89B4FA"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <!-- TARJETAS DE CONFIGURACIÓN -->
+    <Style Selector="Border.SettingsCard">
+        <Setter Property="Background" Value="#1E1E2E"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="15"/>
+        <Setter Property="Margin" Value="0,0,0,15"/>
+        <Setter Property="BorderBrush" Value="#313244"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+</Styles>

@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <!-- El manifiesto de Windows del Editor (el .csproj lo enlaza con ApplicationManifest). Solo se
+       usa en Windows; en Linux y macOS no hace nada.
+       No hay que quitarlo: la plantilla de Avalonia avisa de que, sin él, puede haber problemas
+       con la transparencia de las ventanas y con los controles incrustados. Más información:
+       https://learn.microsoft.com/en-us/windows/win32/sbscs/application-manifests -->
+  <!-- La identidad del manifiesto. El nombre no tiene que coincidir con nada: es el que traía
+       la plantilla. -->
+  <assemblyIdentity version="1.0.0.0" name="SheepGDEditor.Desktop"/>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Las versiones de Windows con las que la aplicación se declara compatible. Windows le da
+           el comportamiento de la más moderna de la lista; sin ninguna, la trataría como un
+           programa antiguo. -->
+
+      <!-- Windows 10, y también Windows 11, que usa este mismo identificador. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

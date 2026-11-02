@@ -1,0 +1,28 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SheepGDRequest.App"
+             xmlns:local="using:SheepGDRequest"
+             RequestedThemeVariant="Dark">
+             <!-- "Dark" fijo y no "Default": toda la paleta está escrita a mano en tonos
+                  oscuros (#1E1E2E, #1A1A27...), así que seguir el tema del sistema haría
+                  que en un equipo con tema claro los popups y menús de Fluent salieran
+                  blancos sobre fondos oscuros propios. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <!-- Las fuentes se declaran aquí y no en EstilosSheepGD.axaml porque una URI avares://
+             lleva el nombre del ensamblado y no resolvería desde SheepGDEditor. Cada aplicación
+             declara FuenteTitulos y FuenteGD con su propio ensamblado. -->
+        <FontFamily x:Key="FuenteTitulos">avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf</FontFamily>
+        <FontFamily x:Key="FuenteGD">avares://SheepGDRequest/Assets/pusab.otf#Pusab</FontFamily>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <!-- Compartido con SheepGDEditor. Va después de FluentTheme para poder sobrescribirlo. -->
+        <StyleInclude Source="avares://SheepGDRequest/Assets/EstilosSheepGD.axaml"/>
+    </Application.Styles>
+</Application>

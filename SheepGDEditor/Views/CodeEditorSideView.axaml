@@ -1,0 +1,39 @@
+<!--
+    Panel lateral del editor de código: la lista de archivos del tema. Cada botón abre su archivo
+    en el editor de código, que ocupa el sitio del lienzo (el TextEditor de MainWindow.axaml).
+
+    El DataContext de este panel es el CodeEditorSideViewModel, pero los botones no lo usan:
+    suben hasta la ventana ($parent[Window]) y llaman a MainWindowViewModel.OpenCodeFile, que
+    antes de cambiar guarda en memoria lo escrito en el archivo actual y, si se abre theme.json,
+    lo vuelve a generar a partir del lienzo. CommandParameter es la ruta del archivo dentro del
+    tema.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SheepGDEditor.ViewModels"
+             xmlns:i18n="using:SheepGDEditor.Services"
+             x:Class="SheepGDEditor.Views.CodeEditorSideView"
+             x:DataType="vm:CodeEditorSideViewModel">
+
+    <ScrollViewer Padding="15,0,15,20">
+        <StackPanel>
+
+            <!-- Archivos comunes a todo el tema: theme.json, que se genera a partir del lienzo y
+                 es de solo lectura, el script engine.js y la hoja de estilos engine.css. -->
+            <TextBlock Text="{i18n:Tr UI_Code_BaseFiles}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"/>
+            <Button Content="{i18n:Tr UI_Code_ThemeJson}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="theme.json" Classes="ObjectBtn"/>
+            <Button Content="engine.js" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="engine.js" Classes="ObjectBtn"/>
+            <Button Content="engine.css" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="engine.css" Classes="ObjectBtn"/>
+
+            <!-- Las páginas del tema: la del widget unificado (index.html) y la de cada lienzo por
+                 separado. -->
+            <TextBlock Text="{i18n:Tr UI_Code_HtmlCanvases}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"/>
+            <Button Content="{i18n:Tr UI_Code_IndexUnified}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="index.html" Classes="ObjectBtn"/>
+            <Button Content="playing/index.html" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="playing/index.html" Classes="ObjectBtn"/>
+            <Button Content="queue/index.html" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="queue/index.html" Classes="ObjectBtn"/>
+            <Button Content="notification/index.html" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenCodeFileCommand}" CommandParameter="notification/index.html" Classes="ObjectBtn"/>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

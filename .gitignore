@@ -1,0 +1,25 @@
+# Compilación de .NET: se regenera en cada build
+bin/
+obj/
+publish/
+
+# Archivos de prueba y mokups
+PlaceHolders/
+
+# Archivos de usuario y del IDE (Rider, Visual Studio, VS Code)
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+*.DotSettings.user
+
+# Configuración local de Claude Code
+.claude/
+
+# Paquetes generados
+*.AppImage
+
+# Sistema
+.DS_Store
+Thumbs.db

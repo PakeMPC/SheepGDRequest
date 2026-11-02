@@ -1,0 +1,439 @@
+<!--
+    El panel de propiedades: lo que se puede cambiar del objeto seleccionado en el lienzo. Su
+    DataContext es el PropertiesViewModel, y casi todos los controles editan directamente
+    SelectedWidget (el WidgetItemViewModel del objeto). Con varios objetos seleccionados se edita
+    el primero, y MainWindowViewModel copia los cambios a los demás.
+
+    De arriba abajo: la cabecera (título, capa e interruptor de vista previa), la sección de
+    textos, la de imágenes y vídeos (con las opciones del vídeo y del halo de la cara de
+    dificultad) y la sección común a todos los objetos. Las dos primeras solo se ven si TODO lo
+    seleccionado es de ese tipo (ShowTextProperties y ShowMediaProperties).
+
+    Cada control avisa al historial al EMPEZAR a usarlo, para que guarde cómo estaba todo antes
+    del cambio (SaveState) y un Ctrl+Z lo devuelva ahí. Hay dos formas, según el control:
+
+    - Los campos numéricos y el cuadro de texto llevan GotFocus="OnInteractionStarted": se usan
+      con el foco dentro, y todo lo que se escriba mientras tanto es un solo paso.
+    - Los botones de color, las casillas, los deslizadores y los desplegables llevan la clase
+      FotoAlPulsar, y la foto la hace PropertiesView.axaml.cs: con el ratón, al pulsarlos (los
+      botones de color, en su Click, antes de abrir el selector); con el teclado, una foto
+      preparada que solo entra en el historial si la tecla llega a cambiar algo, y una sola por
+      tecla mantenida. No puede ir en un PointerPressed puesto aquí: esos controles marcan el
+      clic como atendido, y entonces el manejador del XAML no llega a ejecutarse (así estuvo
+      durante un tiempo, y la mitad del panel no dejaba paso en el historial). Los desplegables
+      iban antes por GotFocus, pero al abrirse el foco pasa a su lista y vuelve al cerrarse, y
+      cada vuelta era una foto más: la última, ya con el cambio hecho, dejaba un Ctrl+Z que no
+      hacía nada.
+
+    Los botones que van por un comando (elegir archivo, quitar la imagen o el fotograma) no
+    llevan ninguna de las dos: su comando ya llama a SaveState. Un control nuevo que cambie algo
+    que se guarda en el tema necesita una de las dos.
+
+    Que el tema quede marcado como modificado ya no depende de esto: lo hace MainWindowViewModel
+    cada vez que cambia una propiedad que se guarda, venga el cambio de donde venga.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SheepGDEditor.ViewModels"
+             xmlns:i18n="using:SheepGDEditor.Services"
+             x:Class="SheepGDEditor.Views.PropertiesView"
+             x:DataType="vm:PropertiesViewModel">
+
+    <UserControl.Styles>
+        <!-- La etiqueta de cada ajuste del panel. Solo existe dentro de este panel: puesta en otra
+             vista no hace nada. -->
+        <Style Selector="TextBlock.PropLabel">
+            <Setter Property="Foreground" Value="#A6ADC8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,15,0,5"/>
+        </Style>
+        <!-- Todos los campos numéricos del panel: sin flechas, con el número centrado, y con un 0
+             de marca de agua cuando el campo se queda vacío. -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="#1A1A27"/>
+            <Setter Property="BorderBrush" Value="#313244"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="ShowButtonSpinner" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Watermark" Value="0"/>
+        </Style>
+
+        <!-- Si un campo numérico se queda vacío o con algo que no es un número, el enlace falla, y
+             Avalonia pinta por defecto el texto de la excepción debajo del control. Esta plantilla
+             vacía quita el texto y deja el borde rojo. -->
+        <Style Selector="DataValidationErrors">
+            <Setter Property="ErrorTemplate">
+                <DataTemplate>
+                    <Panel />
+                </DataTemplate>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer Padding="15,0,15,20">
+        <StackPanel>
+
+            <!-- 1. La cabecera: el nombre del objeto (o cuántos hay seleccionados), su capa, y
+                 el interruptor de la vista previa, que es solo del Editor y no se guarda en el
+                 tema. -->
+            <Border Background="#2A2A3C" CornerRadius="8" BorderBrush="#89B4FA" BorderThickness="3,0,0,0" Padding="15" Margin="5,15,5,10">
+                <StackPanel>
+                    <TextBlock Text="{Binding SelectionTitle}" FontSize="22" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock FontSize="12" Foreground="#A6ADC8" Margin="0,5,0,0">
+                        <Run Text="{i18n:Tr UI_Prop_CurrentLayer}"/><Run Text="{Binding SelectedWidget.LayerIndex, FallbackValue='1'}"/>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,15,0,0">
+                        <ToggleSwitch IsChecked="{Binding SelectedWidget.IsPreviewEnabled}"
+                                      OnContent="{i18n:Tr UI_Prop_PreviewOn}"
+                                      OffContent="{i18n:Tr UI_Prop_PreviewOff}"
+                                      Foreground="#A6ADC8" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ========================================== -->
+            <!-- SECCIÓN DE TEXTOS                          -->
+            <!-- ========================================== -->
+            <!-- Solo si todo lo seleccionado es texto: el texto fijo, los datos que son texto y el
+                 cuadro de notificación. Lo que va dentro no necesita repetir esta condición (antes
+                 varios elementos la repetían, sin efecto). -->
+            <StackPanel IsVisible="{Binding ShowTextProperties, FallbackValue=False}">
+
+                <!-- El texto en sí: solo en el texto fijo (Text). En los demás lo pone el dato. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_TextContent}" Classes="PropLabel" IsVisible="{Binding SelectedWidget.CanEditTextContent}"/>
+                <TextBox Text="{Binding SelectedWidget.ObjectName}"
+                         GotFocus="OnInteractionStarted"
+                         Background="#1A1A27"
+                         BorderBrush="#313244"
+                         Foreground="White"
+                         Margin="0,0,0,10"
+                         HorizontalAlignment="Stretch"
+                         IsVisible="{Binding SelectedWidget.CanEditTextContent}"/>
+
+                <StackPanel>
+                    <!-- La fuente: una del sistema, o una propia (.ttf u .otf) si está marcada la
+                         casilla. La lista de fuentes del sistema sale de MainWindowViewModel. -->
+                    <TextBlock Text="{i18n:Tr UI_Prop_SystemFonts}" Classes="PropLabel"/>
+                    <ComboBox HorizontalAlignment="Stretch"
+                              Classes="FotoAlPulsar"
+                              ItemsSource="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SystemFonts}"
+                              SelectedItem="{Binding SelectedWidget.FontFamilyName}"
+                              IsVisible="{Binding !SelectedWidget.UseCustomFont}"/>
+
+                    <!-- Qué le pasará a esta fuente al guardar: si se incrustará en el tema o por
+                         qué no se puede. -->
+                    <TextBlock Text="{Binding SelectedWidget.AvisoFuente}"
+                               Foreground="{Binding SelectedWidget.AvisoFuenteBrush}"
+                               FontSize="11" TextWrapping="Wrap" Margin="0,4,0,2"
+                               IsVisible="{Binding SelectedWidget.HayAvisoFuente, FallbackValue=False}"/>
+
+                    <!-- El archivo de la fuente propia. No lleva OnInteractionStarted porque su
+                         comando ya llama a SaveState. -->
+                    <Button Content="{Binding SelectedWidget.CustomFontButtonText}"
+                            HorizontalAlignment="Stretch"
+                            Background="#313244"
+                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectCustomFontCommand}"
+                            CommandParameter="{Binding $parent[Window]}"
+                            IsVisible="{Binding SelectedWidget.UseCustomFont}"/>
+
+                    <!-- La casilla que elige entre fuente del sistema y fuente propia. -->
+                    <CheckBox Content="{i18n:Tr UI_AddCustomFont}"
+                              Classes="FotoAlPulsar"
+                              IsChecked="{Binding SelectedWidget.UseCustomFont}"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- El color de la letra (el botón abre el selector) y su tamaño. -->
+                <Grid ColumnDefinitions="Auto, *">
+                    <Button Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="{Binding SelectedWidget.DisplayTextColor}" BorderBrush="#45475A" BorderThickness="1" Margin="0,0,10,0" Classes="FotoAlPulsar">
+                        <Button.Flyout>
+                            <Flyout>
+                                <ColorView Color="{Binding SelectedWidget.TextColor}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <!-- Minimum="1": un tamaño de letra de 0 o negativo no tiene sentido (y el
+                         ViewModel también lo sube a 1). -->
+                    <NumericUpDown Grid.Column="1" Value="{Binding SelectedWidget.FontSize}" Minimum="1" Maximum="1000" FormatString="0" HorizontalAlignment="Stretch" GotFocus="OnInteractionStarted"/>
+                </Grid>
+
+                <!-- La alineación horizontal: izquierda, centro, derecha o justificado. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_Alignment}" Classes="PropLabel"/>
+                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding SelectedWidget.TextAlignmentIndex}" Classes="FotoAlPulsar">
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignLeft}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignCenter}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignRight}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignJustify}"/>
+                </ComboBox>
+
+                <!-- La alineación vertical dentro de la caja: arriba, centro o abajo. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_VerticalAlignment}" Classes="PropLabel"/>
+                <ComboBox SelectedIndex="{Binding SelectedWidget.VerticalTextAlignmentIndex}" Classes="FotoAlPulsar" HorizontalAlignment="Stretch" Background="#1A1A27" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10">
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignTop}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignCenter}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_AlignBottom}"/>
+                </ComboBox>
+
+                <!-- El margen interior entre el borde de la caja y el texto, en píxeles. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_TextPadding}" Classes="PropLabel"/>
+                <NumericUpDown Value="{Binding SelectedWidget.TextPadding}" GotFocus="OnInteractionStarted" Minimum="0" Maximum="500" Background="#1A1A27" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10"/>
+
+                <!-- Con salto de línea, el texto se parte en varias líneas; sin él, va en una sola
+                     y, si no cabe, se desplaza de lado a lado (marquesina). -->
+                <CheckBox Content="{i18n:Tr UI_Prop_WordWrap}" IsChecked="{Binding SelectedWidget.IsTextWrapped}" Margin="0,5,0,0" Classes="FotoAlPulsar"/>
+
+                <!-- El contorno de la letra: la casilla lo activa, y debajo se elige su color y su
+                     grosor. -->
+                <CheckBox Content="{i18n:Tr UI_Prop_Outline}" IsChecked="{Binding SelectedWidget.HasTextOutline}" Margin="0,5,0,0"
+                          Classes="FotoAlPulsar"/>
+
+                <StackPanel IsVisible="{Binding SelectedWidget.HasTextOutline, FallbackValue=False}" Margin="0,5,0,0">
+                    <!-- Mismo patrón que el color + tamaño de la fuente: botón de color a la
+                         izquierda, grosor a la derecha -->
+                    <Grid ColumnDefinitions="Auto, *">
+                        <Button Grid.Column="0" Width="32" Height="32" CornerRadius="6"
+                                Background="{Binding SelectedWidget.DisplayTextOutlineColor}"
+                                BorderBrush="#45475A" BorderThickness="1" Margin="0,0,10,0"
+                                Classes="FotoAlPulsar">
+                            <Button.Flyout>
+                                <Flyout>
+                                    <ColorView Color="{Binding SelectedWidget.TextOutlineColor}" />
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        <NumericUpDown Grid.Column="1" Value="{Binding SelectedWidget.TextOutlineSize}"
+                                       Minimum="0" Maximum="50" Increment="0.5" FormatString="0.#"
+                                       HorizontalAlignment="Stretch" GotFocus="OnInteractionStarted"/>
+                    </Grid>
+
+                    <TextBlock Text="{i18n:Tr UI_Prop_OutlineHint}"
+                               Foreground="#7F849C" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <!-- Solo en el cuadro de notificación: el color del usuario y el del nivel dentro
+                     del mensaje. -->
+                <StackPanel IsVisible="{Binding SelectedWidget.IsNotificationBox}">
+                    <TextBlock Text="{i18n:Tr UI_Prop_RequesterColor}" Classes="PropLabel"/>
+                    <Button Width="32" Height="32" CornerRadius="6" Background="{Binding SelectedWidget.DisplayRequesterColor}" BorderBrush="#45475A" BorderThickness="1" Margin="0,0,0,10" Classes="FotoAlPulsar">
+                        <Button.Flyout>
+                            <Flyout>
+                                <ColorView Color="{Binding SelectedWidget.RequesterColor}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <TextBlock Text="{i18n:Tr UI_Prop_LevelDataColor}" Classes="PropLabel"/>
+                    <Button Width="32" Height="32" CornerRadius="6" Background="{Binding SelectedWidget.DisplayLevelDataColor}" BorderBrush="#45475A" BorderThickness="1" Margin="0,0,0,10" Classes="FotoAlPulsar">
+                        <Button.Flyout>
+                            <Flyout>
+                                <ColorView Color="{Binding SelectedWidget.LevelDataColor}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+
+                <!-- El fondo de la caja: su color, y si se ve ese color o es transparente. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_BackgroundType}" Classes="PropLabel"/>
+                <Grid ColumnDefinitions="Auto, *">
+                    <Button Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="{Binding SelectedWidget.ButtonBackgroundColor}" BorderBrush="#45475A" BorderThickness="1" Margin="0,0,10,0" Classes="FotoAlPulsar">
+                        <Button.Flyout>
+                            <Flyout>
+                                <ColorView Color="{Binding SelectedWidget.BackgroundColor}" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="{Binding SelectedWidget.BackgroundTypeIndex}" Classes="FotoAlPulsar">
+                        <ComboBoxItem Content="{i18n:Tr UI_BgColor}"/>
+                        <ComboBoxItem Content="{i18n:Tr UI_BgTransparent}"/>
+                    </ComboBox>
+                </Grid>
+
+                <!-- El desenfoque de la letra, en píxeles. 0 = nítido. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_Blur}" Classes="PropLabel"/>
+                <Grid ColumnDefinitions="*, Auto">
+                    <Slider Grid.Column="0" Minimum="0" Maximum="20" Value="{Binding SelectedWidget.FontBlur}" Margin="0,0,15,0" Classes="FotoAlPulsar"/>
+                    <TextBlock Grid.Column="1" Text="{Binding SelectedWidget.FontBlur, StringFormat='{}{0:0}'}" Foreground="White" VerticalAlignment="Center" Width="35" TextAlignment="Right"/>
+                </Grid>
+
+            </StackPanel>
+
+            <!-- ========================================== -->
+            <!-- SECCIÓN DE IMÁGENES Y VÍDEOS               -->
+            <!-- ========================================== -->
+            <!-- Solo si todo lo seleccionado es imagen o vídeo. -->
+            <StackPanel IsVisible="{Binding ShowMediaProperties, FallbackValue=False}">
+
+                <!-- El archivo: solo en la imagen y el vídeo elegidos por el diseñador, y en el
+                     fondo del nivel, donde es la imagen por defecto. Los demás objetos de datos
+                     tienen la imagen que les pone el Editor. -->
+                <TextBlock Text="{Binding SelectedWidget.MediaSourceLabel}" Classes="PropLabel" IsVisible="{Binding SelectedWidget.CanChangeMediaSource}"/>
+                <Button Content="{i18n:Tr UI_Prop_SelectFile}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Background="#313244"
+                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectImageForWidgetCommand}"
+                        CommandParameter="{Binding $parent[Window]}"
+                        IsVisible="{Binding SelectedWidget.CanChangeMediaSource}"/>
+
+                <!-- El nombre del archivo elegido, o que no hay ninguno. -->
+                <TextBlock Text="{Binding SelectedWidget.MediaPlaceholderName}"
+                           Foreground="#7F849C" FontSize="11" HorizontalAlignment="Center"
+                           Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding SelectedWidget.CanChangeMediaSource}"/>
+
+                <!-- Solo en el LevelBackground: quitar la imagen por defecto, para que sin
+                     miniatura no se vea nada. Mismo aspecto que "Quitar fotograma". -->
+                <Button Content="{i18n:Tr UI_Prop_RemoveDefaultImage}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Background="#313244" Foreground="#F38BA8"
+                        Margin="0,6,0,0"
+                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ClearDefaultImageCommand}"
+                        IsVisible="{Binding SelectedWidget.CanClearDefaultImage, FallbackValue=False}"/>
+
+                <!-- Solo en el fondo del nivel: qué significa esa imagen, o qué pasa si no tiene
+                     ninguna. -->
+                <TextBlock Text="{Binding SelectedWidget.LevelBgHint}"
+                           Foreground="#7F849C" FontSize="11" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,4,0,8"
+                           IsVisible="{Binding SelectedWidget.IsLevelBackground, FallbackValue=False}"/>
+
+                <!-- Cómo se ajusta a la caja: mantener la proporción, estirar o llenar con
+                     zoom. -->
+                <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding SelectedWidget.StretchIndex}" Classes="FotoAlPulsar">
+                    <ComboBoxItem Content="{i18n:Tr UI_StretchKeep}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_StretchFill}"/>
+                    <ComboBoxItem Content="{i18n:Tr UI_StretchZoom}"/>
+                </ComboBox>
+
+                <!-- ========================================== -->
+                <!-- OPCIONES DEL VÍDEO                         -->
+                <!-- ========================================== -->
+                <!-- Solo en los vídeos: repetir y silenciar (atributos del <video>), y el fotograma
+                     de muestra, que es la imagen que se ve en el lienzo y mientras el vídeo carga
+                     en OBS. -->
+                <StackPanel IsVisible="{Binding SelectedWidget.IsVideo, FallbackValue=False}">
+                    <TextBlock Text="{i18n:Tr UI_Obj_Video}" Classes="PropLabel"/>
+                    <CheckBox Content="{i18n:Tr UI_Prop_VideoLoop}" IsChecked="{Binding SelectedWidget.VideoLoop}" Classes="FotoAlPulsar"/>
+                    <CheckBox Content="{i18n:Tr UI_Prop_VideoMute}" IsChecked="{Binding SelectedWidget.VideoMuted}" Classes="FotoAlPulsar"/>
+                    <TextBlock Text="{i18n:Tr UI_Prop_Poster}" Classes="PropLabel"/>
+                    <Button Content="{i18n:Tr UI_Prop_PickPoster}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Background="#313244"
+                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectVideoPosterCommand}"
+                            CommandParameter="{Binding $parent[Window]}"/>
+
+                    <TextBlock Text="{Binding SelectedWidget.VideoPosterName}"
+                               Foreground="#7F849C" FontSize="11" HorizontalAlignment="Center"
+                               Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+
+                    <Button Content="{i18n:Tr UI_Prop_RemovePoster}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            Background="#313244" Foreground="#F38BA8"
+                            Margin="0,6,0,0"
+                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ClearVideoPosterCommand}"
+                            IsVisible="{Binding SelectedWidget.HasVideoPosterPath, FallbackValue=False}"/>
+
+                    <TextBlock Text="{i18n:Tr UI_Prop_PosterHint}"
+                               Foreground="#7F849C" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <!-- ========================================== -->
+                <!-- HALO DE LA CARA DE DIFICULTAD              -->
+                <!-- ========================================== -->
+                <!-- Solo en la cara de dificultad. La casilla y el tamaño se guardan en el tema; el
+                     desplegable solo elige qué halo se ve en el lienzo, porque en el directo lo
+                     decide el nivel. -->
+                <StackPanel IsVisible="{Binding SelectedWidget.IsRateFace, FallbackValue=False}">
+                    <TextBlock Text="{i18n:Tr UI_Prop_Halo}" Classes="PropLabel"/>
+                    <CheckBox Content="{i18n:Tr UI_Prop_ShowHalo}" IsChecked="{Binding SelectedWidget.ShowHalo}" Classes="FotoAlPulsar"/>
+
+                    <ComboBox HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                              SelectedIndex="{Binding SelectedWidget.HaloIndex}"
+                              IsEnabled="{Binding SelectedWidget.ShowHalo}"
+                              Classes="FotoAlPulsar">
+                        <ComboBoxItem Content="{i18n:Tr UI_HaloAuto}"/>
+                        <ComboBoxItem Content="{i18n:Tr UI_HaloNone}"/>
+                        <ComboBoxItem>Featured</ComboBoxItem>
+                        <ComboBoxItem>Epic</ComboBoxItem>
+                        <ComboBoxItem>Legendary</ComboBoxItem>
+                        <ComboBoxItem>Mythic</ComboBoxItem>
+                    </ComboBox>
+
+                    <TextBlock Text="{i18n:Tr UI_Prop_HaloSize}" Classes="PropLabel"/>
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Slider Grid.Column="0" Minimum="1" Maximum="3"
+                                Value="{Binding SelectedWidget.HaloScale}"
+                                IsEnabled="{Binding SelectedWidget.ShowHalo}"
+                                Margin="0,0,15,0" Classes="FotoAlPulsar"/>
+                        <TextBlock Grid.Column="1" Text="{Binding SelectedWidget.HaloScale, StringFormat='{}{0:0.00}x'}" Foreground="White" VerticalAlignment="Center" Width="45" TextAlignment="Right"/>
+                    </Grid>
+
+                    <TextBlock Text="{i18n:Tr UI_Prop_HaloHint}"
+                               Foreground="#7F849C" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <!-- El filtro de color: un color que se pinta encima de la imagen o del vídeo. -->
+                <TextBlock Text="{i18n:Tr UI_Prop_Overlay}" Classes="PropLabel"/>
+                <Button Width="32" Height="32" CornerRadius="6" HorizontalAlignment="Center" Background="{Binding SelectedWidget.DisplayForegroundColor}" BorderBrush="#45475A" BorderThickness="1" Classes="FotoAlPulsar">
+                    <Button.Flyout>
+                        <Flyout>
+                            <ColorView Color="{Binding SelectedWidget.ForegroundColor}" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+
+            <!-- ========================================== -->
+            <!-- SECCIÓN COMÚN A TODOS LOS OBJETOS          -->
+            <!-- ========================================== -->
+            <!-- La opacidad (de 0 a 1, aunque la propiedad se llame Transparency), el redondeo
+                 de las esquinas, la duración en las notificaciones, el tamaño, la posición y la
+                 capa. -->
+            <TextBlock Text="{i18n:Tr UI_Prop_Opacity}" Classes="PropLabel"/>
+            <Grid ColumnDefinitions="*, Auto">
+                <Slider Grid.Column="0" Minimum="0" Maximum="1" Value="{Binding SelectedWidget.Transparency}" Margin="0,0,15,0" Classes="FotoAlPulsar"/>
+                <TextBlock Grid.Column="1" Text="{Binding SelectedWidget.Transparency, StringFormat='{}{0:P0}'}" Foreground="White" VerticalAlignment="Center" Width="35" TextAlignment="Right"/>
+            </Grid>
+
+            <TextBlock Text="{i18n:Tr UI_Prop_Roundness}" Classes="PropLabel"/>
+            <Grid ColumnDefinitions="*, Auto">
+                <Slider Grid.Column="0" Minimum="0" Maximum="100" Value="{Binding SelectedWidget.BorderRoundness}" Margin="0,0,15,0" Classes="FotoAlPulsar"/>
+                <TextBlock Grid.Column="1" Text="{Binding SelectedWidget.BorderRoundness, StringFormat='{}{0:0}'}" Foreground="White" VerticalAlignment="Center" Width="35" TextAlignment="Right"/>
+            </Grid>
+
+            <!-- Solo en la pestaña Notification: cuántos segundos se ve este objeto en cada
+                 notificación. -->
+            <StackPanel IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsNotificationWidgetVisible}">
+                <TextBlock Text="{i18n:Tr UI_Prop_NotifDuration}" Classes="PropLabel"/>
+                <NumericUpDown Value="{Binding SelectedWidget.NotificationDuration}" Minimum="0.5" Maximum="3600" Increment="0.5" Background="#1A1A27" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10" GotFocus="OnInteractionStarted"/>
+            </StackPanel>
+
+            <!-- El tamaño de la caja, antes del recorte. Minimum="1": una caja de 0 o negativa
+                 no se ve ni se puede volver a coger con el ratón. -->
+            <TextBlock Text="{i18n:Tr UI_Prop_Size}" Classes="PropLabel"/>
+            <Grid ColumnDefinitions="*, Auto, *" Margin="20,0">
+                <NumericUpDown Grid.Column="0" Value="{Binding SelectedWidget.Width}" Minimum="1" FormatString="0" GotFocus="OnInteractionStarted"/>
+                <TextBlock Grid.Column="1" Text="x" Foreground="#A6ADC8" VerticalAlignment="Center" Margin="10,0"/>
+                <NumericUpDown Grid.Column="2" Value="{Binding SelectedWidget.Height}" Minimum="1" FormatString="0" GotFocus="OnInteractionStarted"/>
+            </Grid>
+
+            <!-- La posición de la esquina superior izquierda, sin contar el giro. -->
+            <TextBlock Text="{i18n:Tr UI_Prop_Position}" Classes="PropLabel"/>
+            <Grid ColumnDefinitions="*, Auto, *" Margin="20,0">
+                <NumericUpDown Grid.Column="0" Value="{Binding SelectedWidget.X}" FormatString="0" GotFocus="OnInteractionStarted"/>
+                <TextBlock Grid.Column="1" Text="x" Foreground="#A6ADC8" VerticalAlignment="Center" Margin="10,0"/>
+                <NumericUpDown Grid.Column="2" Value="{Binding SelectedWidget.Y}" FormatString="0" GotFocus="OnInteractionStarted"/>
+            </Grid>
+
+            <!-- La capa: el objeto con el número más alto se dibuja por encima. -->
+            <TextBlock Text="{i18n:Tr UI_Prop_LayerNumber}" Classes="PropLabel"/>
+            <NumericUpDown Value="{Binding SelectedWidget.LayerIndex}" FormatString="0" Margin="60,0" GotFocus="OnInteractionStarted"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

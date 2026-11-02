@@ -1,0 +1,402 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:SheepGDRequest.ViewModels"
+             xmlns:models="using:SheepGDRequest.Models"
+             xmlns:conv="using:SheepGDRequest.Converters"
+             xmlns:i18n="using:SheepGDRequest.Helpers"
+             xmlns:svc="using:SheepGDRequest.Services"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="1200"
+             x:Class="SheepGDRequest.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel"
+             Background="#1E1E2E">
+
+    <!-- Los estilos de este panel (SectionTitle, TextBox/ComboBox, NumericUpDown,
+         ButtonSpinner, SettingsCard) están en Shared/EstilosSheepGD.axaml, que comparten
+         SheepGDRequest y SheepGDEditor y que se carga desde App.axaml. Un cambio en esos
+         estilos se hace allí: cambiarlos aquí solo afectaría a esta aplicación. -->
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10,10,10,40" HorizontalAlignment="Stretch">
+
+            <!-- CABECERA Y BOTONES GENERALES -->
+            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,20">
+                <!-- Título alineado a la izquierda -->
+                <TextBlock Grid.Column="0" Text="{i18n:Tr UI_SettingsPanelTitle}" FontFamily="avares://SheepGDRequest/Assets/OpenSans-ExtraBold.ttf" FontSize="26" Foreground="White" VerticalAlignment="Center"/>
+
+                <!-- Controles alineados a la derecha -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+
+                    <!-- SELECTOR DE IDIOMA -->
+                    <ComboBox ItemsSource="{Binding AvailableLanguages}" SelectedItem="{Binding SelectedLanguage}" Width="160" Margin="0,0,15,0" VerticalAlignment="Center">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LanguageItem">
+                                <TextBlock Text="{Binding Name}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <!-- BOTONES -->
+                    <Button Content="{i18n:Tr UI_BtnClearCache}" Command="{Binding ClearCacheCommand}" Background="#313244" Foreground="White" FontWeight="Bold" CornerRadius="6" Padding="15,10" Margin="0,0,10,0" ToolTip.Tip="{i18n:Tr UI_TooltipClearCache}"/>
+                    <Button Content="{i18n:Tr UI_BtnSaveChanges}" Command="{Binding SaveSettingsCommand}" Background="#313244" Foreground="White" FontWeight="Bold" CornerRadius="6" Padding="15,10"/>
+
+                </StackPanel>
+            </Grid>
+
+            <!-- SECCIÓN 1: CONEXIÓN Y CHAT -->
+<Border Classes="SettingsCard">
+    <StackPanel>
+        <TextBlock Text="{i18n:Tr UI_SecNetworkCmds}" Classes="SectionTitle"/>
+
+        <!-- Enlaces de chat -->
+        <TextBlock Text="{i18n:Tr UI_ChatLinksTitle}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+        <ItemsControl ItemsSource="{Binding Settings.ChatLinks}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="models:ChatLinkModel">
+                    <Grid ColumnDefinitions="Auto, *, Auto, Auto, Auto" Margin="0,0,0,5">
+                        <ComboBox Grid.Column="0" ItemsSource="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).AvailablePlatforms}" SelectedItem="{Binding Platform}" Width="170" Margin="0,0,10,0">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{x:Static conv:EnumTranslatorConverter.Instance}">
+                                                <Binding/>
+                                                <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBox Grid.Column="1" Text="{Binding Url}" PlaceholderText="{i18n:Tr UI_ChatUrlWatermark}" VerticalAlignment="Center"/>
+                        <Button Grid.Column="2" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).ReLoginChatLinkCommand}" CommandParameter="{Binding}" IsVisible="{Binding UsaInicioDeSesion}" Content="{i18n:Tr UI_BtnReLogin}" Background="#313244" Foreground="White" Margin="5,0,0,0" ToolTip.Tip="{i18n:Tr UI_TooltipReLogin}"/>
+                        <Button Grid.Column="3" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).ReconnectChatLinkCommand}" CommandParameter="{Binding}" Background="Transparent" Margin="5,0,0,0" ToolTip.Tip="{i18n:Tr UI_TooltipReconnect}">
+                            <Image Classes="Icono" Source="/Assets/refresh.png"/>
+                        </Button>
+                        <Button Grid.Column="4" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveChatLinkCommand}" CommandParameter="{Binding}" Background="Transparent" Margin="5,0,0,0" ToolTip.Tip="{i18n:Tr UI_TooltipDelete}">
+                            <Image Classes="Icono" Source="/Assets/trash.png"/>
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="{i18n:Tr UI_BtnAddLink}" Command="{Binding AddChatLinkCommand}" Background="#313244" Foreground="White" HorizontalAlignment="Left" Margin="0,5,0,15"/>
+
+        <!-- ========================================== -->
+        <!-- DISCORD: solo si hay algún enlace suyo     -->
+        <!-- ========================================== -->
+        <StackPanel IsVisible="{Binding HayEnlaceDiscord}">
+
+            <TextBlock Text="{i18n:Tr UI_DiscordTokenTitle}" Foreground="White" FontWeight="Bold" Margin="0,10,0,5"/>
+            <Grid ColumnDefinitions="*, Auto">
+
+                <!-- Token, con los caracteres ocultos -->
+                <TextBox Grid.Column="0"
+                         Text="{Binding Settings.DiscordBotToken}"
+                         PasswordChar="•"
+                         PlaceholderText="{i18n:Tr UI_DiscordTokenWatermark}"
+                         VerticalAlignment="Center"
+                         Margin="0,0,10,0"/>
+
+                <!-- Botón del tutorial, con el color de marca de Discord -->
+                <Button Grid.Column="1"
+                        Content="{i18n:Tr UI_DiscordTutorialBtn}"
+                        Command="{Binding OpenDiscordTutorialCommand}"
+                        Background="#5865F2"
+                        Foreground="White"
+                        VerticalAlignment="Center"/>
+            </Grid>
+
+            <CheckBox Content="{i18n:Tr UI_DiscordOnlyChecked}"
+                      IsChecked="{Binding Settings.DiscordOnlyCheckedLevels}"
+                      Foreground="White" Margin="0,10,0,0"
+                      ToolTip.Tip="{i18n:Tr UI_DiscordOnlyCheckedTip}"/>
+
+        </StackPanel>
+                    <!-- Comandos de petición -->
+                    <TextBlock Text="{i18n:Tr UI_CmdRequestsTitle}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <ItemsControl ItemsSource="{Binding Settings.RequestCommands}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:RequestCommandModel">
+                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                                    <TextBox Grid.Column="0" Text="{Binding CommandText}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveCommandCommand}" CommandParameter="{Binding}" Background="Transparent" Margin="5,0,0,0">
+                                        <Image Classes="Icono" Source="/Assets/trash.png"/>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="{i18n:Tr UI_BtnAddCmd}" Command="{Binding AddCommandCommand}" IsVisible="{Binding CanAddCommand}" Background="#313244" Foreground="White" HorizontalAlignment="Left" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- SECCIÓN 2: LÍMITES Y FILTROS -->
+            <Border Classes="SettingsCard">
+                <StackPanel>
+                    <TextBlock Text="{i18n:Tr UI_SecQueueRules}" Classes="SectionTitle"/>
+
+                    <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto, Auto, Auto" Margin="0,0,0,15">
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,5">
+                            <ToggleSwitch IsChecked="{Binding Settings.IsUserLimitEnabled}" Content="{i18n:Tr UI_LimitPerUser}" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding Settings.UserMaxRequests}" FormatString="0" IsVisible="{Binding Settings.IsUserLimitEnabled}" Minimum="1" Maximum="50" Width="110" Margin="10,0,0,0" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,5">
+                            <ToggleSwitch IsChecked="{Binding Settings.IsAutoSkipEnabled}" Content="{i18n:Tr UI_AutoSkip}" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding Settings.AutoSkipValue}" FormatString="0" IsVisible="{Binding Settings.IsAutoSkipEnabled}" Minimum="1" Maximum="59" Width="110" Margin="10,0,0,0" VerticalAlignment="Bottom"/>
+                            <ComboBox ItemsSource="{Binding AvailableTimeUnits}" SelectedItem="{Binding Settings.AutoSkipFormat}" IsVisible="{Binding Settings.IsAutoSkipEnabled}" Margin="10,0,0,0" Width="120" VerticalAlignment="Bottom">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static conv:EnumTranslatorConverter.Instance}">
+                                                    <Binding/>
+                                                    <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <ToggleSwitch Grid.Row="1" Grid.Column="0" IsChecked="{Binding Settings.OnlyRatedLevels}" Content="{i18n:Tr UI_OnlyRated}" Margin="0,5"/>
+                        <ToggleSwitch Grid.Row="1" Grid.Column="1" IsChecked="{Binding Settings.AllowRepeatedLevels}" Content="{i18n:Tr UI_AllowRepeated}" Margin="0,5"/>
+
+                        <ToggleSwitch Grid.Row="2" Grid.Column="0" IsChecked="{Binding Settings.OnlyIdRequests}" Content="{i18n:Tr UI_StrictId}" Margin="0,5"/>
+                        <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Settings.AutoDetectIds}" Content="{i18n:Tr UI_AutoDetectId}" Margin="0,5"/>
+                    </Grid>
+
+                    <!-- Filtro de dificultad -->
+                    <TextBlock Text="{i18n:Tr UI_LimitByDiff}" Foreground="White" FontWeight="Bold" Margin="0,10,0,5"/>
+                    <StackPanel Orientation="Horizontal">
+                        <ComboBox ItemsSource="{Binding AvailableConditions}" SelectedItem="{Binding Settings.DifficultyCondition}" Width="190" Margin="0,0,10,0">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{x:Static conv:EnumTranslatorConverter.Instance}">
+                                                <Binding/>
+                                                <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding AvailableDifficulties}" SelectedItem="{Binding Settings.TargetDifficulty}" Width="200">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{x:Static conv:EnumTranslatorConverter.Instance}">
+                                                <Binding/>
+                                                <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Lista negra y límite global -->
+                    <Grid ColumnDefinitions="*, *" Margin="0,20,0,5">
+                        <!-- Izquierda: lista negra -->
+                        <ToggleSwitch Grid.Column="0" IsChecked="{Binding Settings.IsBlacklistEnabled}" Content="{i18n:Tr UI_EnableBlacklist}" VerticalAlignment="Center"/>
+
+                        <!-- Derecha: límite global -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ToggleSwitch IsChecked="{Binding Settings.IsGlobalLimitEnabled}" Content="{i18n:Tr UI_LimitRequests}" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding Settings.GlobalMaxRequests}" FormatString="0" IsVisible="{Binding Settings.IsGlobalLimitEnabled}" Minimum="1" Maximum="200" Width="110" Margin="10,0,0,0" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Elementos de la lista negra (se ocultan si está apagada) -->
+                    <ItemsControl ItemsSource="{Binding Settings.BlacklistedIds}" IsVisible="{Binding Settings.IsBlacklistEnabled}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:BlacklistIdModel">
+                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                                    <TextBox Grid.Column="0" Text="{Binding LevelIdText}" PlaceholderText="{i18n:Tr UI_BlacklistWatermark}" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveBlacklistIdCommand}" CommandParameter="{Binding}" Background="Transparent" Margin="5,0,0,0">
+                                        <Image Classes="Icono" Source="/Assets/trash.png"/>
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="{i18n:Tr UI_BtnAddBlacklist}" Command="{Binding AddBlacklistIdCommand}" IsVisible="{Binding Settings.IsBlacklistEnabled}" Background="#313244" Foreground="White" HorizontalAlignment="Left" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- SECCIÓN 3: INTERFAZ Y OBS -->
+            <Border Classes="SettingsCard">
+                <StackPanel>
+                    <TextBlock Text="{i18n:Tr UI_SecInterfaceStream}" Classes="SectionTitle"/>
+
+                    <ToggleSwitch IsChecked="{Binding Settings.AlwaysOnTop}" Content="{i18n:Tr UI_AlwaysOnTop}" Margin="0,5"/>
+                    <ToggleSwitch IsChecked="{Binding Settings.ExportObsTexts}" Content="{i18n:Tr UI_ExportObs}" Margin="0,5"/>
+
+                    <TextBlock Text="{i18n:Tr UI_ThumbOpacity}" Foreground="White" Margin="0,15,0,5"/>
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Slider Grid.Column="0" Minimum="0" Maximum="100" Value="{Binding Settings.ThumbnailOpacity}" Margin="0,0,15,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Settings.ThumbnailOpacity, StringFormat='{}{0}%'}" Foreground="White" VerticalAlignment="Center" Width="40"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ========================================== -->
+                <!-- SECCIÓN 4: WIDGETS PARA OBS -->
+                <!-- ========================================== -->
+                <Border Classes="SettingsCard" Margin="0,0,0,20">
+                    <StackPanel>
+                        <!-- Título de la sección -->
+                        <TextBlock Text="{i18n:Tr UI_SecWidgets}" Foreground="#89B4FA" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"/>
+
+                        <!-- Interruptor del servidor de widgets y puerto -->
+                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,20">
+                            <ToggleSwitch Grid.Column="0" IsChecked="{Binding Settings.IsWidgetsServerEnabled}" Content="{i18n:Tr UI_EnableWidgets}" VerticalAlignment="Center"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{i18n:Tr UI_WidgetPort}" Foreground="White" VerticalAlignment="Center" Margin="0,10,10,0"/>
+                                <NumericUpDown Value="{Binding Settings.WidgetServerPort}" Margin="0,10,10,0" FormatString="0" Minimum="1024" Maximum="65535" Width="120"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Lo que sigue se desactiva si el servidor de widgets está apagado -->
+                        <StackPanel IsEnabled="{Binding Settings.IsWidgetsServerEnabled}">
+
+                            <!-- 1. NOTIFICACIONES -->
+                            <StackPanel Margin="0,0,0,20">
+                                <ToggleSwitch IsChecked="{Binding Settings.IsNotificationWidgetEnabled}" Content="{i18n:Tr UI_WidgetNotification}"/>
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,5,0,0" IsVisible="{Binding Settings.IsNotificationWidgetEnabled}">
+                                    <TextBox Grid.Column="0" Text="{Binding Settings.NotificationWidgetUrl}" IsReadOnly="True" Margin="0,0,10,0"/>
+                                    <Button Grid.Column="1" Content="{i18n:Tr UI_Copy}" Command="{Binding CopyWidgetUrlCommand}" CommandParameter="{Binding Settings.NotificationWidgetUrl}" Background="#313244" Foreground="White" Margin="0,0,15,0"/>
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding ThemeManager.NotificationThemes}"
+                                              SelectedItem="{Binding Settings.SelectedNotificationTheme}"
+                                              Width="150" PlaceholderText="{i18n:Tr UI_Theme}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- 2. NIVEL JUGANDO -->
+                            <StackPanel Margin="0,0,0,20">
+                                <ToggleSwitch IsChecked="{Binding Settings.IsPlayingWidgetEnabled}" Content="{i18n:Tr UI_WidgetPlaying}"/>
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,5,0,0" IsVisible="{Binding Settings.IsPlayingWidgetEnabled}">
+                                    <TextBox Grid.Column="0" Text="{Binding Settings.PlayingWidgetUrl}" IsReadOnly="True" Margin="0,0,10,0"/>
+                                    <Button Grid.Column="1" Content="{i18n:Tr UI_Copy}" Command="{Binding CopyWidgetUrlCommand}" CommandParameter="{Binding Settings.PlayingWidgetUrl}" Background="#313244" Foreground="White" Margin="0,0,15,0"/>
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding ThemeManager.PlayingThemes}"
+                                              SelectedItem="{Binding Settings.SelectedPlayingTheme}"
+                                              Width="150" PlaceholderText="{i18n:Tr UI_Theme}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- 3. COLA DE NIVELES -->
+                            <StackPanel Margin="0,0,0,20">
+                                <ToggleSwitch IsChecked="{Binding Settings.IsQueueWidgetEnabled}" Content="{i18n:Tr UI_WidgetQueue}"/>
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,5,0,0" IsVisible="{Binding Settings.IsQueueWidgetEnabled}">
+                                    <TextBox Grid.Column="0" Text="{Binding Settings.QueueWidgetUrl}" IsReadOnly="True" Margin="0,0,10,0"/>
+                                    <Button Grid.Column="1" Content="{i18n:Tr UI_Copy}" Command="{Binding CopyWidgetUrlCommand}" CommandParameter="{Binding Settings.QueueWidgetUrl}" Background="#313244" Foreground="White" Margin="0,0,15,0"/>
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding ThemeManager.QueueThemes}"
+                                              SelectedItem="{Binding Settings.SelectedQueueTheme}"
+                                              Width="150" PlaceholderText="{i18n:Tr UI_Theme}"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- SEPARADOR -->
+                            <Border Height="1" Background="#313244" Margin="0,10,0,20"/>
+
+                            <!-- 4. WIDGET UNIFICADO -->
+                            <StackPanel Margin="0,0,0,10">
+                                <ToggleSwitch IsChecked="{Binding Settings.IsUnifiedWidgetEnabled}" Content="{i18n:Tr UI_WidgetUnified}" Foreground="Gold"/>
+                                <Grid ColumnDefinitions="*, Auto, Auto" Margin="0,5,0,0" IsVisible="{Binding Settings.IsUnifiedWidgetEnabled}">
+                                    <TextBox Grid.Column="0" Text="{Binding Settings.UnifiedWidgetUrl}" IsReadOnly="True" Margin="0,0,10,0"/>
+                                    <Button Grid.Column="1" Content="{i18n:Tr UI_Copy}" Command="{Binding CopyWidgetUrlCommand}" CommandParameter="{Binding Settings.UnifiedWidgetUrl}" Background="#313244" Foreground="White" Margin="0,0,15,0"/>
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding ThemeManager.UnifiedThemes}"
+                                              SelectedItem="{Binding Settings.SelectedUnifiedTheme}"
+                                              Width="150" PlaceholderText="{i18n:Tr UI_Theme}"/>
+                                </Grid>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+            <!-- SECCIÓN 5: HERRAMIENTAS -->
+            <Border Classes="SettingsCard">
+                <StackPanel>
+                    <TextBlock Text="{i18n:Tr UI_SecTools}" Classes="SectionTitle"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Command="{Binding OpenThemesFolderCommand}" Background="#313244" Foreground="White">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Classes="Icono" Source="/Assets/folder.png"/>
+                                <TextBlock Text="{i18n:Tr UI_BtnOpenThemesFolder}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding OpenThemeEditorCommand}" Background="#313244" Foreground="White">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Classes="Icono" Source="/Assets/pencil.png"/>
+                                <TextBlock Text="{i18n:Tr UI_BtnOpenThemeEditor}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding InstallGeodeModCommand}" Background="#313244" Foreground="White">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Classes="Icono" Source="/Assets/puzzle.png"/>
+                                <TextBlock Text="{i18n:Tr UI_BtnInstallGeodeMod}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- SECCIÓN 6: NOTIFICACIONES Y LECTURA EN VOZ ALTA -->
+            <Border Classes="SettingsCard">
+                <StackPanel>
+                    <TextBlock Text="{i18n:Tr UI_SecNotifications}" Classes="SectionTitle"/>
+
+                    <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto">
+                        <!-- Fila 0 -->
+                        <ToggleSwitch Grid.Row="0" Grid.Column="0" IsChecked="{Binding Settings.NotifySuccessEvents}" Content="{i18n:Tr UI_NotifySuccess}" Margin="0,5"/>
+                        <ToggleSwitch Grid.Row="0" Grid.Column="1" IsChecked="{Binding Settings.TtsEnableSuccess}" Content="{i18n:Tr UI_TtsReadSuccess}" Margin="0,5" Foreground="Gold"/>
+                        <!-- Fila 1 -->
+                        <ToggleSwitch Grid.Row="1" Grid.Column="0" IsChecked="{Binding Settings.NotifyFilterBlocks}" Content="{i18n:Tr UI_NotifyFilters}" Margin="0,5"/>
+                        <ToggleSwitch Grid.Row="1" Grid.Column="1" IsChecked="{Binding Settings.TtsEnableFilters}" Content="{i18n:Tr UI_TtsReadBlocks}" Margin="0,5" Foreground="Gold"/>
+                        <!-- Fila 2 -->
+                        <ToggleSwitch Grid.Row="2" Grid.Column="0" IsChecked="{Binding Settings.NotifySystemEvents}" Content="{i18n:Tr UI_NotifySystem}" Margin="0,5"/>
+                        <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Settings.TtsEnableSystem}" Content="{i18n:Tr UI_TtsReadSystem}" Margin="0,5" Foreground="Gold"/>
+                        <!-- Fila 3: los avisos del auto-skip se leen con la voz del sistema -->
+                        <ToggleSwitch Grid.Row="3" Grid.Column="0" IsChecked="{Binding Settings.NotifyAutoSkipEvents}" Content="{i18n:Tr UI_NotifyAutoSkip}" Margin="0,5"/>
+                        <!-- Fila 4: volumen de la voz, a todo el ancho -->
+                        <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,15,0,5">
+                            <TextBlock Text="{i18n:Tr UI_TtsVolume}" Foreground="White" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*, Auto">
+                                <Slider Grid.Column="0" Minimum="0" Maximum="100" Value="{Binding Settings.TtsVolume}" Margin="0,0,15,0"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Settings.TtsVolume, StringFormat='{}{0}%'}" Foreground="White" VerticalAlignment="Center" Width="40"/>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- SECCIÓN 7: BORRADO DE DATOS -->
+            <Border Classes="SettingsCard" BorderBrush="#F38BA8" Background="#2A181C">
+                <StackPanel>
+                    <TextBlock Text="{i18n:Tr UI_TitleClearWarning}" Classes="SectionTitle" Foreground="#F38BA8"/>
+
+                    <Grid ColumnDefinitions="*, *" Margin="0,5,0,0">
+                        <Button Grid.Column="0" Content="{i18n:Tr UI_BtnClearQueue}" Command="{Binding ClearAllRequestsCommand}" Background="#F38BA8" Foreground="Black" FontWeight="Bold" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="15" Margin="0,0,5,0"/>
+
+                        <Button Grid.Column="1" Content="{i18n:Tr UI_BtnClearNotifications}" Command="{Binding ClearNotificationsCommand}" Background="#F38BA8" Foreground="Black" FontWeight="Bold" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="15" Margin="5,0,0,0"/>                    </Grid>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

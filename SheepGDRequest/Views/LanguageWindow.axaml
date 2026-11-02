@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SheepGDRequest.Views.LanguageWindow"
+        Title="Selecciona tu Idioma / Select Language"
+        Width="400" Height="280"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False" Background="#11111B">
+
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="15" Margin="20">
+        <!-- Textos fijos, sin I18n, a propósito: esta ventana sale en el primer arranque, antes
+             de que haya un idioma elegido. Cada botón lleva el nombre del idioma en esa lengua.
+
+             Sin emoji de globo: las banderas ya indican para qué es la ventana, y la interfaz no
+             usa emojis del sistema como iconos, porque cambian de aspecto según el sistema. -->
+        <TextBlock Text="Select your language / Selecciona tu idioma:"
+                   Foreground="White" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+
+        <Button Click="BtnEs_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#313244" Foreground="White" Padding="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Image Source="/Assets/flags/es.png" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
+                <TextBlock Text="Español" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Button>
+        <Button Click="BtnEn_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#313244" Foreground="White" Padding="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Image Source="/Assets/flags/en.png" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
+                <TextBlock Text="English" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Button>
+        <Button Click="BtnPt_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#313244" Foreground="White" Padding="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Image Source="/Assets/flags/pt.png" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
+                <TextBlock Text="Português" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</Window>

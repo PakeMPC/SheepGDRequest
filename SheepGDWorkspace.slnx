@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SheepGDEditor/SheepGDEditor.csproj" />
+  <Project Path="SheepGDRequest/SheepGDRequest.csproj" />
+</Solution>

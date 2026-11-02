@@ -1,0 +1,126 @@
+<!--
+    La caja de herramientas: el panel lateral con un botón por cada tipo de objeto que se puede
+    añadir al lienzo. Cada botón llama a MainWindowViewModel.AddWidgetObject con el nombre del
+    tipo (el de WidgetObjectType) en CommandParameter, y el objeto aparece en el centro de la parte
+    del lienzo que se está viendo.
+
+    Su DataContext ya es el MainWindowViewModel (no tiene ViewModel propio), pero los enlaces
+    suben igualmente hasta la ventana con $parent[Window].
+
+    En la pestaña Notification se ocultan casi todos los botones de datos (IsLevelDataVisible) y
+    aparece el del cuadro de notificación. El fondo del nivel no se oculta, así que su título,
+    "Datos del nivel", tampoco; los títulos de las otras tres secciones de datos se ocultan con
+    sus botones. (Antes se quedaban, y en Notification salían tres títulos sin nada debajo.)
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SheepGDEditor.ViewModels"
+             xmlns:i18n="using:SheepGDEditor.Services"
+             x:Class="SheepGDEditor.Views.ToolboxView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer Padding="15,0,15,20">
+        <StackPanel>
+
+            <!-- (Aquí había un tamaño de lienzo oculto con IsVisible="False" y sin enlazar a nada,
+                 un resto. El de verdad está en la columna izquierda de MainWindow.axaml.) -->
+            <Border Height="1" Background="#45475A" Margin="0,0,0,15"/>
+
+            <!-- Básicos: texto fijo, imagen y vídeo. -->
+            <TextBlock Text="{i18n:Tr UI_Tb_Basics}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,10,0,5"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Text}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Text"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Image}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Image"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Video}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Video"/>
+
+            <!-- Imágenes predefinidas: un menú con los PNG que trae el Editor. Cada uno añade una
+                 imagen con ese archivo (AddPredefinedImage). -->
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Tb_PredefinedImages}">
+                <Button.Flyout>
+                    <Flyout Placement="Right">
+                        <ScrollViewer MaxHeight="300">
+                            <ItemsControl ItemsSource="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PredefinedImages}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- El comando recibe la ruta completa (FullPath); el botón
+                                             enseña el nombre del archivo
+                                             (FileName). -->
+                                        <Button Margin="2" Padding="10,5" Background="#313244" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddPredefinedImageCommand}" CommandParameter="{Binding FullPath}">
+                                            <TextBlock Text="{Binding FileName}" FontSize="12" Foreground="White" />
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+
+            <!-- El cuadro de notificación: solo en la pestaña Notification. -->
+            <StackPanel IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsNotificationWidgetVisible}">
+                <TextBlock Text="{i18n:Tr UI_Tb_Notifications}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"/>
+                <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_NotificationBox}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="NotificationBox"/>
+            </StackPanel>
+
+            <!-- Datos del nivel. Todos menos el fondo se ocultan en la pestaña Notification. -->
+            <TextBlock Text="{i18n:Tr UI_Tb_LevelData}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_LevelBackground}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="LevelBackground"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_LevelName}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="LevelName"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_CreatorName}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="CreatorName"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_LevelId}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="LevelId"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <!-- Datos de la petición: quién la hizo, desde qué plataforma, si las peticiones están
+                 abiertas y el temporizador del auto-skip. -->
+            <TextBlock Text="{i18n:Tr UI_Tb_StreamMeta}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"
+                       IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_SentBy}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="SentBy"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_PlatformIcon}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="PlatformIcon"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_PlatformName}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="PlatformName"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_RequestStatus}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="RequestStatus"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Timer}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Timer"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <!-- Dificultad y estadísticas del nivel. -->
+            <TextBlock Text="{i18n:Tr UI_Tb_Stats}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"
+                       IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_RateFace}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="RateFace"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_RateText}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="RateText"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Stars}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Stars"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Downloads}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Downloads"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_LikeIcon}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="LikeIcon"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_StarIcon}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="StarIcon"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_LikesAndDislikes}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="LikesAndDislikes"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Orbs}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Orbs"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_Duration}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="Duration"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+            <!-- Listas externas de demons: la posición en la AREDL y el tier en la GDDL. -->
+            <TextBlock Text="{i18n:Tr UI_Tb_ExternalLists}" Foreground="#A6ADC8" FontSize="11" FontWeight="Bold" Margin="5,15,0,5"
+                       IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_AredlPos}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="AredlPos"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+            <Button Classes="ObjectBtn" Content="{i18n:Tr UI_Obj_GddlRate}" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).AddWidgetObjectCommand}" CommandParameter="GddlRate"
+                    IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsLevelDataVisible}"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+      <OutputType>WinExe</OutputType>
+      <TargetFramework>net8.0</TargetFramework>
+      <Nullable>enable</Nullable>
+      <ApplicationManifest>app.manifest</ApplicationManifest>
+      <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+      <ApplicationModel>Avalonia</ApplicationModel>
+      <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+      <ApplicationIcon>Assets\SheepGDrequestICON.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+    <!-- Estilos compartidos con SheepGDEditor: se compila una copia dentro de cada app.
+         El Link es lo que hace que resuelva como avares://SheepGDRequest/Assets/... -->
+    <AvaloniaResource Include="..\Shared\EstilosSheepGD.axaml" Link="Assets\EstilosSheepGD.axaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Discord.Net" Version="3.20.1" />
+    <PackageReference Include="EmbedIO" Version="3.5.2" />
+    <PackageReference Include="ManagedBass" Version="4.1.0-prerelease" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+    <PackageReference Include="SocketIOClient" Version="4.0.5" />
+    <PackageReference Include="TikTokLive_Sharp" Version="1.2.3" />
+  </ItemGroup>
+
+    <ItemGroup>
+        <None Update="bass.dll" Condition="'$(RuntimeIdentifier)' != 'linux-x64'">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="libbass.so" Condition="'$(RuntimeIdentifier)' != 'win-x64'">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="libbassAndroidARM64.so" Condition="'$(RuntimeIdentifier)' != 'win-x64' AND '$(RuntimeIdentifier)' != 'linux-x64'">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
+        <None Update="WidgetThemes\**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
+        <None Update="geode\**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+</Project>

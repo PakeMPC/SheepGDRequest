@@ -1,0 +1,815 @@
+<!--
+    La ventana principal del Editor, en tres columnas:
+      - izquierda: los seis botones principales, los datos del tema y los ajustes de la pestaña
+        que se está editando;
+      - centro: la barra de deshacer, zoom y vista previa, y debajo el lienzo o, en su lugar, el
+        editor de código;
+      - derecha: el panel lateral que toque (caja de herramientas, propiedades o archivos de
+        código), según MainWindowViewModel.CurrentSidePanel.
+
+    Casi todo va por enlaces a MainWindowViewModel. Lo que necesita el ratón o el teclado
+    (arrastrar, recortar, girar, el recuadro de selección, el zoom con la rueda, los atajos) lo
+    hace MainWindow.axaml.cs: los nombres de evento de este archivo son métodos de ese.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SheepGDEditor.ViewModels"
+        xmlns:views="using:SheepGDEditor.Views"
+        xmlns:i18n="using:SheepGDEditor.Services"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="SheepGDEditor.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="1024" Height="600"
+        MinWidth="1024" MinHeight="600"
+        Icon="avares://SheepGDEditor/Assets/SheepGDeditorICON.ico"
+        Title="SheepGDEditor"
+        Background="#11111B"
+        WindowStartupLocation="CenterScreen"
+        KeyDown="OnWindowKeyDown">
+
+    <!-- Estilos de toda la ventana, que también llegan a los paneles laterales: los botones
+         cuadrados de herramientas (ToolBtn) y los botones de lista (ObjectBtn). -->
+    <Window.Styles>
+        <Style Selector="Button.ToolBtn">
+            <Setter Property="Background" Value="#1E1E2E"/>
+            <Setter Property="BorderBrush" Value="#313244"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+        </Style>
+        <Style Selector="Button.ToolBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#313244"/>
+        </Style>
+        <Style Selector="Button.ToolBtn Image">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+        </Style>
+
+        <Style Selector="Button.ObjectBtn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#313244"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Padding" Value="0,8"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.ObjectBtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Foreground" Value="#89B4FA"/>
+        </Style>
+        <!-- Sin mensajes de error de validación en toda la ventana. Si un campo numérico se queda
+             vacío o con algo que no es un número, el enlace falla, y Avalonia pinta por defecto el
+             texto de la excepción debajo del control. Esta plantilla vacía lo quita. (El panel de
+             propiedades tiene la suya, que además deja el borde rojo.) -->
+        <Style Selector="DataValidationErrors">
+            <Setter Property="ErrorTemplate">
+                <DataTemplate>
+                    <Panel />
+                </DataTemplate>
+            </Setter>
+        </Style>
+    </Window.Styles>
+
+    <!-- Las tres columnas: izquierda y derecha de 300 px fijos; el centro, para el lienzo, con lo
+         que sobra. -->
+    <Grid ColumnDefinitions="300, *, 300">
+
+        <!-- ========================================== -->
+        <!-- COLUMNA IZQUIERDA: BOTONES Y AJUSTES       -->
+        <!-- ========================================== -->
+        <Border Grid.Column="0" Background="#181825" BorderBrush="#313244" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto, *">
+
+                <!-- 1. Los seis botones principales, en dos columnas y tres filas. Los dos de abajo
+                     reciben la ventana ($parent[Window]) porque abren un diálogo de archivos. -->
+                <UniformGrid Grid.Row="0" Columns="2" Rows="3" Margin="10,15,10,10" Height="200">
+                    <!-- Más: vuelve a la caja de herramientas, para añadir objetos. -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_AddObject}" Command="{Binding ShowToolboxCommand}">
+                        <Panel>
+                            <Image Source="/Assets/plus.png"/>
+                        </Panel>
+                    </Button>
+                    <!-- Menos: borra los objetos seleccionados. -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_DeleteObject}" Command="{Binding DeleteSelectedObjectCommand}">
+                        <Panel>
+                            <Image Source="/Assets/minus.png"/>
+                        </Panel>
+                    </Button>
+                    <!-- Lápiz: abre el panel de propiedades del objeto seleccionado. -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_EditProperties}" Command="{Binding ShowPropertiesCommand}">
+                        <Image Source="/Assets/pencil.png"/>
+                    </Button>
+                    <!-- Consola: abre el editor de código del tema. -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_CodeEditor}" Command="{Binding ShowCodeEditorCommand}">
+                        <Image Source="/Assets/console.png"/>
+                    </Button>
+                    <!-- Guardar como: siempre pregunta dónde. (Ctrl+S, en MainWindow.axaml.cs,
+                         guarda sin preguntar.) -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_SaveAs}"
+                            Command="{Binding SaveThemeAsCommand}"
+                            CommandParameter="{Binding $parent[Window]}">
+                        <Image Source="/Assets/save.png"/>
+                    </Button>
+                    <!-- Abrir un tema (.zip). -->
+                    <Button Classes="ToolBtn" ToolTip.Tip="{i18n:Tr UI_Tip_OpenTheme}"
+                            Command="{Binding LoadThemeCommand}"
+                            CommandParameter="{Binding $parent[Window]}">
+                        <Image Source="/Assets/folder.png"/>
+                    </Button>
+                </UniformGrid>
+
+                <!-- 2. Los datos del tema, la pestaña que se está editando y sus ajustes. Va en un
+                     ScrollViewer porque a la altura mínima de la ventana (600 px) no cabe todo,
+                     sobre todo en la pestaña Notification. -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,10,20,15">
+
+                        <!-- Los datos del tema: nombre y autor, y a la derecha del nombre el aviso
+                             de guardado (con la ruta en el ToolTip). Antes vivían en la barra
+                             superior, donde, con la ventana a su ancho de arranque (1024 px),
+                             quedaban tapados. -->
+                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,3">
+                            <TextBlock Grid.Column="0" Text="{i18n:Tr UI_ThemeLabel}" Foreground="#A6ADC8" FontSize="11" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding SaveStatusText}" ToolTip.Tip="{Binding SaveStatusTip}" Foreground="#F9E2AF" FontSize="11" VerticalAlignment="Center"/>
+                        </Grid>
+                        <TextBox Text="{Binding ThemeName}" Background="#11111B" BorderBrush="#313244" Foreground="White" Padding="8,5" CornerRadius="4" VerticalContentAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="{i18n:Tr UI_AuthorLabel}" Foreground="#A6ADC8" FontSize="11" Margin="0,0,0,3"/>
+                        <TextBox Text="{Binding ThemeAuthor}" Background="#11111B" BorderBrush="#313244" Foreground="White" Padding="8,5" CornerRadius="4" VerticalContentAlignment="Center" Margin="0,0,0,15"/>
+                        <Border Height="1" Background="#313244" Margin="0,0,0,15"/>
+
+                    <!-- La pestaña (el lienzo) que se edita. La opción Unified solo aparece cuando
+                         hace falta (MainWindowViewModel.RefreshWidgetTypeOptions). -->
+                    <TextBlock Text="{i18n:Tr UI_WidgetTypeLabel}" Foreground="#A6ADC8" FontSize="12" HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                    <ComboBox HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding WidgetTypeOptions}"
+                              SelectedIndex="{Binding SelectedWidgetTypeIndex}"
+                              Background="#1E1E2E" BorderBrush="#313244"/>
+
+                    <!-- Tamaño del lienzo: solo en Unified. En las demás pestañas se calcula al
+                         guardar, a partir de los objetos. Minimum="1": con 0 o un negativo, el
+                         lienzo desaparecía (y se guardaba así en theme.json). -->
+                    <StackPanel Margin="0,15,0,0" IsVisible="{Binding IsCanvasSizeVisible}">
+                        <TextBlock Text="{i18n:Tr UI_CanvasSize}" Foreground="#A6ADC8" FontSize="11" Margin="0,0,0,5" HorizontalAlignment="Center"/>
+                        <Grid ColumnDefinitions="*, Auto, *">
+                            <NumericUpDown Grid.Column="0" Value="{Binding CanvasWidth}" Minimum="1" FormatString="0"/>
+                            <TextBlock Grid.Column="1" Text="x" Foreground="#A6ADC8" VerticalAlignment="Center" Margin="10,0"/>
+                            <NumericUpDown Grid.Column="2" Value="{Binding CanvasHeight}" Minimum="1" FormatString="0"/>
+                        </Grid>
+                    </StackPanel>
+                    <!-- Ajustes de las tarjetas de la cola: solo en Queue. Cuántas se ven (de 1 a
+                         20, como las notificaciones; antes admitía 0 y negativos), en qué dirección
+                         se apilan y cuánto espacio dejan entre ellas. -->
+                    <StackPanel Margin="0,15,0,0" IsVisible="{Binding IsQueueSettingsVisible}">
+                        <TextBlock Text="{i18n:Tr UI_Queue_CardSettings}" Foreground="#A6ADC8" FontSize="11" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="{i18n:Tr UI_Queue_MaxItems}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <NumericUpDown Value="{Binding QueueMaxItems}" Minimum="1" Maximum="20" FormatString="0" Background="#1A1A27" BorderBrush="#313244" Foreground="White" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="{i18n:Tr UI_Queue_Direction}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <ComboBox HorizontalAlignment="Stretch" SelectedIndex="{Binding QueueDirectionIndex}" Background="#1E1E2E" BorderBrush="#313244" Margin="0,0,0,10">
+                            <ComboBoxItem Content="{i18n:Tr UI_DirVertical}"/>
+                            <ComboBoxItem Content="{i18n:Tr UI_DirHorizontal}"/>
+                        </ComboBox>
+
+                        <TextBlock Text="{i18n:Tr UI_Queue_Spacing}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <NumericUpDown Value="{Binding QueueSpacing}" FormatString="0" Background="#1A1A27" BorderBrush="#313244" Foreground="White"/>
+                        <!-- Si se dibujan las tarjetas fantasma: las demás tarjetas de la cola, en
+                             el lienzo. -->
+                        <CheckBox Content="{i18n:Tr UI_ShowGhostCards}" IsChecked="{Binding IsQueuePreviewVisible}" Foreground="#A6ADC8" Margin="0,15,0,0" FontSize="11"/>
+                    </StackPanel>
+
+                    <!-- ========================================== -->
+                    <!-- AJUSTES DE LAS NOTIFICACIONES              -->
+                    <!-- ========================================== -->
+                    <!-- Solo en Notification. Los mismos que los de la cola, más el modo del
+                         temporizador: 0 = todas las tarjetas descuentan su tiempo a la vez,
+                         1 = en cascada, de una en una. Las etiquetas llevan el mismo tamaño y
+                         color que las de la cola. (Antes llevaban la clase PropLabel, que solo
+                         existe dentro de PropertiesView.axaml: aquí no hacía nada, y salían más
+                         grandes y en blanco.) -->
+                    <StackPanel IsVisible="{Binding IsNotificationWidgetVisible}" Margin="0,15,0,0">
+                        <TextBlock Text="{i18n:Tr UI_Notif_Settings}" Foreground="#A6ADC8" FontSize="11" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="{i18n:Tr UI_Notif_MaxCards}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <NumericUpDown Value="{Binding NotificationMaxItems}" Minimum="1" Maximum="20" Background="#1E1E2E" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="{i18n:Tr UI_Notif_ListDirection}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <ComboBox SelectedIndex="{Binding NotificationDirectionIndex}" HorizontalAlignment="Stretch" Background="#1E1E2E" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10">
+                            <ComboBoxItem Content="{i18n:Tr UI_DirVertical}"/>
+                            <ComboBoxItem Content="{i18n:Tr UI_DirHorizontal}"/>
+                        </ComboBox>
+
+                        <TextBlock Text="{i18n:Tr UI_Notif_CardSpacing}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <NumericUpDown Value="{Binding NotificationSpacing}" Minimum="-1000" Maximum="1000" Background="#1E1E2E" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="{i18n:Tr UI_Notif_TimerMode}" Foreground="#A6ADC8" FontSize="10" Margin="0,0,0,2"/>
+                        <ComboBox SelectedIndex="{Binding NotificationTimerModeIndex}" HorizontalAlignment="Stretch" Background="#1E1E2E" Foreground="White" BorderBrush="#313244" Margin="0,0,0,10">
+                            <ComboBoxItem Content="{i18n:Tr UI_Notif_Simultaneous}"/>
+                            <ComboBoxItem Content="{i18n:Tr UI_Notif_Cascade}"/>
+                        </ComboBox>
+
+                        <CheckBox Content="{i18n:Tr UI_ShowGhostCards}" IsChecked="{Binding IsNotificationPreviewVisible}" Foreground="#A6ADC8" Margin="0,5,0,0" FontSize="11"/>
+                    </StackPanel>
+
+                        <Border Height="1" Background="#313244" Margin="0,20,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- ========================================== -->
+        <!-- COLUMNA CENTRAL: BARRA Y LIENZO            -->
+        <!-- ========================================== -->
+        <Panel Grid.Column="1">
+            <Grid RowDefinitions="Auto, *">
+
+                <!-- La barra superior: deshacer y rehacer, el zoom y la vista previa. -->
+                <Border Grid.Row="0" Background="#181825" BorderBrush="#313244" BorderThickness="0,0,0,1" Padding="15,10" ZIndex="10">
+                    <Grid ColumnDefinitions="Auto, *, Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5">
+                            <Button Content="↩" ToolTip.Tip="{i18n:Tr UI_Tip_Undo}" Command="{Binding UndoCommand}" Width="32" Height="32" Classes="ToolBtn" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0"/>
+                            <Button Content="↪" ToolTip.Tip="{i18n:Tr UI_Tip_Redo}" Command="{Binding RedoCommand}" Width="32" Height="32" Classes="ToolBtn" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0"/>
+                            <Border Width="1" Background="#313244" Margin="10,0"/>
+                            <Button Content="-" ToolTip.Tip="{i18n:Tr UI_Tip_ZoomOut}" Command="{Binding ZoomOutCommand}" Width="32" Height="32" Classes="ToolBtn" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0"/>
+                            <TextBlock Text="{Binding CanvasZoom, StringFormat='{}{0:P0}'}" Foreground="#A6ADC8" VerticalAlignment="Center" Width="45" TextAlignment="Center"/>
+                            <Button Content="+" ToolTip.Tip="{i18n:Tr UI_Tip_ZoomIn}" Command="{Binding ZoomInCommand}" Width="32" Height="32" Classes="ToolBtn" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0"/>
+                            <Border Width="1" Background="#313244" Margin="10,0"/>
+                            <!-- Vista previa: abre el tema en el navegador del sistema. -->
+                            <Button Content="{i18n:Tr UI_BtnPreview}"
+                                    ToolTip.Tip="{i18n:Tr UI_Tip_Preview}"
+                                    Command="{Binding OpenBrowserPreviewCommand}"
+                                    Height="32" Padding="12,0" Classes="ToolBtn"
+                                    VerticalContentAlignment="Center" Margin="0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <!-- Debajo de la barra: el lienzo o el editor de código, uno u otro. -->
+                <Panel Grid.Row="1">
+
+            <!-- 1. La marca de agua de Sheepy. Va la primera para quedar al fondo de todo: en un
+                 Panel, los hijos que vienen después se dibujan encima. -->
+            <Image Source="/Assets/SheepyBG.png"
+                   Opacity="1"
+                   Stretch="Uniform"
+                   Margin="100"/>
+
+            <!-- 2. El lienzo. El Viewbox lo encaja en el espacio que haya, y se oculta mientras se
+                 ve el editor de código. -->
+            <Viewbox Stretch="Uniform" Margin="40" IsVisible="{Binding IsCanvasVisible}">
+
+                <!-- El lienzo en sí, del tamaño del tema (CanvasWidth x CanvasHeight). Sus
+                     coordenadas son las del tema: los eventos de ratón de MainWindow.axaml.cs leen
+                     las posiciones sobre este Panel (WorkspaceContainer). Es Focusable para que al
+                     tocarlo se quede con el teclado. -->
+                <Panel Name="WorkspaceContainer" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}"
+                       Background="Transparent"
+                       Focusable="True"
+                       PointerPressed="OnBackgroundPointerPressed"
+                       PointerMoved="OnBackgroundPointerMoved"
+                       PointerReleased="OnBackgroundPointerReleased"
+                       DoubleTapped="OnBackgroundDoubleTapped"
+                       PointerWheelChanged="OnCanvasPointerWheelChanged">
+
+
+                    <!-- El zoom y el desplazamiento del lienzo, los dos a la vez. -->
+                    <Panel.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="{Binding CanvasZoom}" ScaleY="{Binding CanvasZoom}" />
+                            <TranslateTransform X="{Binding CanvasOffsetX}" Y="{Binding CanvasOffsetY}" />
+                        </TransformGroup>
+                    </Panel.RenderTransform>
+
+                    <!-- Clic derecho en el lienzo vacío: pegar. -->
+                    <Panel.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Command="{Binding PasteObjectCommand}" Header="{i18n:Tr UI_Menu_PasteObjects}"/>
+                        </ContextMenu>
+                    </Panel.ContextMenu>
+
+                    <!-- El borde punteado del lienzo. -->
+                    <Rectangle Fill="Transparent"
+                               Stroke="#45475A"
+                               StrokeThickness="2"
+                               StrokeDashArray="4,4" />
+
+                    <!-- Las tarjetas fantasma de la cola, punteadas y azules. Van antes que los
+                         objetos, para quedar por debajo, y no reciben el ratón. Se ven en su
+                         pestaña (y en Unified) y si está marcada la casilla de mostrarlas. -->
+                    <ItemsControl ItemsSource="{Binding QueuePreviewBoxes}" IsHitTestVisible="False">
+                        <ItemsControl.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsQueueGhostsVisible"/>
+                                <Binding Path="IsQueuePreviewVisible"/>
+                            </MultiBinding>
+                        </ItemsControl.IsVisible>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas Background="Transparent" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.Styles>
+                            <Style Selector="ContentPresenter" x:DataType="vm:QueueGhostBox">
+                                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                            </Style>
+                        </ItemsControl.Styles>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:QueueGhostBox">
+                                <Rectangle Width="{Binding Width}" Height="{Binding Height}"
+                                           Stroke="#5589B4FA" StrokeThickness="2" StrokeDashArray="4,4"
+                                           Fill="#1189B4FA" RadiusX="8" RadiusY="8"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <!-- Las tarjetas fantasma de las notificaciones, igual que las de la cola. -->
+                    <ItemsControl ItemsSource="{Binding NotificationPreviewBoxes}" IsHitTestVisible="False">
+                        <ItemsControl.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsNotifGhostsVisible"/>
+                                <Binding Path="IsNotificationPreviewVisible"/>
+                            </MultiBinding>
+                        </ItemsControl.IsVisible>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas Background="Transparent" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.Styles>
+                            <Style Selector="ContentPresenter" x:DataType="vm:QueueGhostBox">
+                                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                            </Style>
+                        </ItemsControl.Styles>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:QueueGhostBox">
+                                <Rectangle Width="{Binding Width}" Height="{Binding Height}"
+                                           Stroke="#5589B4FA" StrokeThickness="2" StrokeDashArray="4,4"
+                                           Fill="#1189B4FA" RadiusX="8" RadiusY="8"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Los fantasmas del lienzo unificado: los objetos de las otras tres pestañas,
+                         atenuados y sin ratón. Van ANTES que el ItemsControl real para quedar por
+                         debajo: en un Panel, los hermanos posteriores se dibujan encima. Un doble
+                         clic sobre uno salta a su pestaña (OnBackgroundDoubleTapped). -->
+                    <ItemsControl ItemsSource="{Binding UnifiedGhosts}"
+                                  IsHitTestVisible="False"
+                                  Opacity="0.4"
+                                  IsVisible="{Binding IsUnifiedCanvasActive}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas Background="Transparent" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.Styles>
+                            <Style Selector="ContentPresenter" x:DataType="vm:WidgetItemViewModel">
+                                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                <Setter Property="ZIndex" Value="{Binding LayerIndex}" />
+                            </Style>
+                        </ItemsControl.Styles>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:WidgetItemViewModel">
+                                <Grid Width="{Binding Width}" Height="{Binding Height}"
+                                      ClipToBounds="False" RenderTransformOrigin="50%,50%">
+                                    <Grid.RenderTransform>
+                                        <RotateTransform Angle="{Binding RotationAngle}" />
+                                    </Grid.RenderTransform>
+
+                                    <!-- Mismo montaje de recorte que el dibujo real, para que el
+                                         fantasma coincida con lo que se verá de verdad -->
+                                    <Border Width="{Binding CroppedWidth}" Height="{Binding CroppedHeight}"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="{Binding CropMargin}"
+                                            CornerRadius="{Binding SafeCornerRadius}"
+                                            ClipToBounds="True">
+                                        <Grid Width="{Binding Width}" Height="{Binding Height}"
+                                              HorizontalAlignment="Left" VerticalAlignment="Top"
+                                              Margin="{Binding InverseCropMargin}">
+
+                                            <Border Background="{Binding DisplayBackgroundColor}" />
+
+                                            <Image Source="{Binding DisplayImage}"
+                                                   IsVisible="{Binding ShowImageLayer}"
+                                                   Stretch="{Binding ImageStretchMode}" />
+
+                                            <TextBlock vm:TextBlockHelper.ColoredSegments="{Binding ColoredTextSegments}"
+                                                       IsVisible="{Binding IsText}"
+                                                       FontSize="{Binding FontSize}"
+                                                       FontFamily="{Binding DisplayFontFamily}"
+                                                       HorizontalAlignment="Stretch"
+                                                       VerticalAlignment="{Binding AvaloniaVerticalAlignment}"
+                                                       TextAlignment="{Binding AvaloniaTextAlignment}"
+                                                       TextWrapping="{Binding AvaloniaTextWrapping}"
+                                                       Padding="{Binding AvaloniaTextPadding}"
+                                                       ClipToBounds="False" />
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Los objetos de la pestaña actual. -->
+                    <ItemsControl ItemsSource="{Binding CurrentCanvasObjects}">
+
+                        <!-- En un Canvas, para colocar cada objeto por sus coordenadas. -->
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Canvas Background="Transparent" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <!-- La posición y la capa de cada objeto: X e Y van a Canvas.Left y
+                             Canvas.Top, y LayerIndex a ZIndex. -->
+                        <ItemsControl.Styles>
+                            <Style Selector="ContentPresenter" x:DataType="vm:WidgetItemViewModel">
+                                <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                <Setter Property="ZIndex" Value="{Binding LayerIndex}" />
+                            </Style>
+                        </ItemsControl.Styles>
+
+                        <!-- Cómo se dibuja cada objeto, de abajo arriba: el halo, el recortador
+                             (con el fondo, el contorno, el texto y la imagen o el vídeo), el borde
+                             de selección y los tiradores. -->
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:WidgetItemViewModel">
+                                <!-- El Grid de fuera tiene el tamaño de la caja y gira sobre su
+                                     centro. No recorta: el halo y los tiradores se salen de la
+                                     caja. -->
+                                <Grid Width="{Binding Width}" Height="{Binding Height}" ClipToBounds="False" RenderTransformOrigin="50%,50%">
+
+                                    <!-- El borde de selección: transparente, y azul con la clase
+                                         selected. -->
+                                    <Grid.Styles>
+                                        <Style Selector="Border.widget">
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                        </Style>
+                                        <Style Selector="Border.widget.selected">
+                                            <Setter Property="BorderBrush" Value="#89B4FA" />
+                                        </Style>
+                                    </Grid.Styles>
+
+                                    <Grid.RenderTransform>
+                                        <RotateTransform Angle="{Binding RotationAngle}" />
+                                    </Grid.RenderTransform>
+
+                                    <!-- CAPA 0: EL HALO DE LA CARA DE DIFICULTAD (featured,
+                                         epic, legendary o mythic). Va FUERA del recortador y
+                                         antes que todo lo demás, para quedar justo detrás de la
+                                         cara y poder desbordar su caja, igual que el
+                                         .halo-layer de engine.js. -->
+                                    <Image Source="{Binding DisplayHaloImage}"
+                                           IsVisible="{Binding HasHalo}"
+                                           Width="{Binding HaloWidth}"
+                                           Height="{Binding HaloHeight}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Stretch="Uniform"
+                                           Opacity="{Binding FinalOpacity}"
+                                           IsHitTestVisible="False"/>
+
+                                    <!-- El recortador: una ventana del tamaño visible (CroppedWidth
+                                         x CroppedHeight), metida CropMargin hacia dentro de la
+                                         caja, que recorta lo que se sale y redondea las esquinas.
+                                         También es la parte del objeto que recibe el ratón: clic,
+                                         arrastre, doble clic y menú. -->
+                                    <Border Width="{Binding CroppedWidth}" Height="{Binding CroppedHeight}"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="{Binding CropMargin}"
+                                            CornerRadius="{Binding SafeCornerRadius}"
+                                            ClipToBounds="True"
+                                            Background="Transparent"
+                                            PointerPressed="OnWidgetPointerPressed"
+                                            PointerMoved="OnWidgetPointerMoved"
+                                            PointerReleased="OnWidgetPointerReleased"
+                                            DoubleTapped="OnWidgetDoubleTapped">
+
+                                        <!-- Clic derecho sobre un objeto. Los comandos suben hasta
+                                             la ventana porque aquí el DataContext es el objeto, no
+                                             MainWindowViewModel. -->
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).MoveLayerUpCommand}" Header="{i18n:Tr UI_Menu_LayerUp}"/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).MoveLayerDownCommand}" Header="{i18n:Tr UI_Menu_LayerDown}"/>
+                                                <Separator/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).LinkSelectedObjectsCommand}" Header="{i18n:Tr UI_Menu_Link}"/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).UnlinkSelectedObjectsCommand}" Header="{i18n:Tr UI_Menu_Unlink}"/>
+                                                <Separator/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).DuplicateObjectCommand}" Header="{i18n:Tr UI_Menu_Duplicate}"/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CopyObjectCommand}" Header="{i18n:Tr UI_Menu_Copy}"/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PasteObjectCommand}" Header="{i18n:Tr UI_Menu_Paste}"/>
+                                                <MenuItem Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PastePropertiesCommand}" Header="{i18n:Tr UI_Menu_PasteProperties}"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+
+                                        <!-- El contenido, con el tamaño completo de la caja, movido
+                                             hacia atrás con InverseCropMargin para que el recorte
+                                             no lo desplace. -->
+                                        <Grid Width="{Binding Width}" Height="{Binding Height}"
+                                              HorizontalAlignment="Left" VerticalAlignment="Top"
+                                              Margin="{Binding InverseCropMargin}">
+
+                                            <!-- CAPA 1: EL FONDO. Las transiciones de opacidad de
+                                                 esta capa y las siguientes son los fundidos de las
+                                                 notificaciones de demostración. -->
+                                            <Border Background="{Binding DisplayBackgroundColor}" Opacity="{Binding FinalOpacity}">
+                                                <Border.Transitions>
+                                                    <Transitions>
+                                                        <DoubleTransition Property="Opacity" Duration="0:0:0.4" />
+                                                    </Transitions>
+                                                </Border.Transitions>
+                                            </Border>
+
+                                            <!-- CAPA 1.5: CONTORNO DEL TEXTO -->
+                                            <!-- Va ANTES del TextBlock para quedar por debajo: el
+                                                 relleno lo tapa y solo se ve la mitad de fuera del
+                                                 trazo. Es paint-order: stroke fill hecho a mano. -->
+                                            <Path Data="{Binding TextOutlineGeometry}"
+                                                  IsVisible="{Binding ShowTextOutline}"
+                                                  Stroke="{Binding DisplayTextOutlineColor}"
+                                                  StrokeThickness="{Binding TextOutlineThickness}"
+                                                  StrokeJoin="Round"
+                                                  Fill="{Binding DisplayTextOutlineColor}"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="{Binding AvaloniaVerticalAlignment}"
+                                                  Margin="{Binding AvaloniaTextPadding}"
+                                                  Opacity="{Binding FinalOpacity}"
+                                                  IsHitTestVisible="False">
+                                                <Path.RenderTransform>
+                                                    <TransformGroup>
+                                                        <!-- La corrección que hace caer el contorno
+                                                             justo debajo del texto (ver
+                                                             RebuildOutline) -->
+                                                        <TranslateTransform X="{Binding TextOutlineNudgeX}" Y="{Binding TextOutlineNudgeY}" />
+                                                        <!-- Y encima, el movimiento de la marquesina -->
+                                                        <TranslateTransform X="{Binding MarqueeOffset}" />
+                                                    </TransformGroup>
+                                                </Path.RenderTransform>
+                                            </Path>
+
+                                            <!-- CAPA 2: EL TEXTO, en trozos de color
+                                                 (TextBlockHelper.ColoredSegments). -->
+                                            <TextBlock vm:TextBlockHelper.ColoredSegments="{Binding ColoredTextSegments}"
+                                                       FontSize="{Binding FontSize}"
+                                                       FontFamily="{Binding DisplayFontFamily}"
+                                                       IsVisible="{Binding IsText}"
+                                                       HorizontalAlignment="Stretch"
+                                                       VerticalAlignment="{Binding AvaloniaVerticalAlignment}"
+                                                       TextAlignment="{Binding AvaloniaTextAlignment}"
+                                                       TextWrapping="{Binding AvaloniaTextWrapping}"
+                                                       Padding="{Binding AvaloniaTextPadding}"
+                                                       Opacity="{Binding FinalOpacity}"
+                                                       ClipToBounds="False" IsHitTestVisible="False">
+
+                                                <!-- La marquesina: desplaza el texto de lado a
+                                                     lado. -->
+                                                <TextBlock.RenderTransform>
+                                                    <TranslateTransform X="{Binding MarqueeOffset}" />
+                                                </TextBlock.RenderTransform>
+
+                                                <TextBlock.Transitions>
+                                                    <Transitions>
+                                                        <DoubleTransition Property="Opacity" Duration="0:0:0.4" />
+                                                    </Transitions>
+                                                </TextBlock.Transitions>
+                                                <!-- El desenfoque de la letra. -->
+                                                <TextBlock.Effect>
+                                                    <BlurEffect Radius="{Binding FontBlur}" />
+                                                </TextBlock.Effect>
+                                            </TextBlock>
+
+                                            <!-- CAPA 3: LA IMAGEN O EL VÍDEO -->
+                                            <Panel IsVisible="{Binding IsMedia}" Opacity="{Binding FinalOpacity}" IsHitTestVisible="False">
+                                                <Panel.Transitions>
+                                                    <Transitions>
+                                                        <DoubleTransition Property="Opacity" Duration="0:0:0.4" />
+                                                    </Transitions>
+                                                </Panel.Transitions>
+                                                <!-- La tarjeta de marcador, cuando no hay nada que
+                                                     enseñar: una imagen sin archivo o un vídeo sin
+                                                     fotograma. Avalonia no reproduce vídeo, así que
+                                                     de un vídeo se enseña el nombre del archivo,
+                                                     que es el que irá dentro del ZIP. -->
+                                                <Border Background="#45475A" IsVisible="{Binding ShowMediaPlaceholder}">
+                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="🖼️" FontSize="32" HorizontalAlignment="Center" IsVisible="{Binding !IsVideo}"/>
+                                                        <TextBlock Text="🎥" FontSize="32" HorizontalAlignment="Center" IsVisible="{Binding IsVideo}"/>
+                                                        <TextBlock Text="{Binding MediaPlaceholderName}"
+                                                                   Foreground="#CDD6F4" FontSize="12" HorizontalAlignment="Center"
+                                                                   Margin="0,5,0,0" IsVisible="{Binding IsVideo}"
+                                                                   TextTrimming="CharacterEllipsis" MaxWidth="200"/>
+                                                        <TextBlock Text="{i18n:Tr UI_PlaysInObs}"
+                                                                   Foreground="#7F849C" FontSize="10" HorizontalAlignment="Center"
+                                                                   Margin="0,2,0,0" IsVisible="{Binding HasVideoSource}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- La imagen, con el filtro de color encima. -->
+                                                <Panel IsVisible="{Binding ShowImageLayer}">
+                                                    <Image Source="{Binding DisplayImage}" Stretch="{Binding ImageStretchMode}"/>
+                                                    <Border Background="{Binding DisplayForegroundColor}" IsHitTestVisible="False"/>
+                                                </Panel>
+                                                <!-- El filtro de color sobre la tarjeta de marcador
+                                                     de un vídeo: solo cuando se ve la tarjeta, es
+                                                     decir, un vídeo SIN fotograma. Con fotograma,
+                                                     el vídeo se pinta como imagen y ya lleva el
+                                                     filtro de arriba. (Antes salía en todos los
+                                                     vídeos, y con fotograma los dos filtros se
+                                                     sumaban: el lienzo teñía el doble que OBS.) -->
+                                                <Border Background="{Binding DisplayForegroundColor}" IsHitTestVisible="False">
+                                                    <Border.IsVisible>
+                                                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                            <Binding Path="IsVideo"/>
+                                                            <Binding Path="ShowMediaPlaceholder"/>
+                                                        </MultiBinding>
+                                                    </Border.IsVisible>
+                                                </Border>
+                                            </Panel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- El borde de selección, FUERA del recortador para que sus 2
+                                         px no se corten por la mitad. -->
+                                    <Border Classes="widget" Classes.selected="{Binding IsSelected}"
+                                            Width="{Binding CroppedWidth}" Height="{Binding CroppedHeight}"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Margin="{Binding CropMargin}"
+                                            CornerRadius="{Binding SafeCornerRadius}"
+                                            BorderThickness="2" IsHitTestVisible="False"/>
+
+                                    <!-- CAPA 4: LOS TIRADORES, solo con el objeto seleccionado: los
+                                         de tamaño (azules) y recorte (rosas), o los de giro
+                                         (verdes), según IsRotationMode. -->
+                                    <Grid IsVisible="{Binding IsSelected}" Margin="{Binding CropMargin}">
+                                        <Grid.Styles>
+                                            <Style Selector="Thumb.node">
+                                                <Setter Property="Background" Value="#89B4FA"/>
+                                                <Setter Property="Width" Value="10"/>
+                                                <Setter Property="Height" Value="10"/>
+                                                <Setter Property="Template">
+                                                    <ControlTemplate>
+                                                        <Border Background="{TemplateBinding Background}" BorderBrush="#11111B" BorderThickness="1"/>
+                                                    </ControlTemplate>
+                                                </Setter>
+                                            </Style>
+                                            <Style Selector="Border.cropNodeV">
+                                                <Setter Property="Background" Value="#F38BA8"/>
+                                                <Setter Property="BorderBrush" Value="#11111B"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Setter Property="CornerRadius" Value="4"/>
+                                                <Setter Property="Width" Value="16"/>
+                                                <Setter Property="Height" Value="8"/>
+                                            </Style>
+                                            <Style Selector="Border.cropNodeH">
+                                                <Setter Property="Background" Value="#F38BA8"/>
+                                                <Setter Property="BorderBrush" Value="#11111B"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Setter Property="CornerRadius" Value="4"/>
+                                                <Setter Property="Width" Value="8"/>
+                                                <Setter Property="Height" Value="16"/>
+                                            </Style>
+                                            <Style Selector="Border.rotateNode">
+                                                <Setter Property="Background" Value="#A6E3A1"/>
+                                                <Setter Property="Width" Value="16"/>
+                                                <Setter Property="Height" Value="16"/>
+                                                <Setter Property="CornerRadius" Value="8"/>
+                                                <Setter Property="BorderBrush" Value="#11111B"/>
+                                                <Setter Property="BorderThickness" Value="2"/>
+                                                <Setter Property="Cursor" Value="Hand"/>
+                                            </Style>
+                                        </Grid.Styles>
+
+                                        <!-- Tamaño y recorte. El Name de cada uno es el que lee
+                                             MainWindow.axaml.cs para saber qué lado se mueve. -->
+                                        <Grid IsVisible="{Binding !IsRotationMode}">
+                                            <Border Name="CropTop" Classes="cropNodeV" Cursor="SizeNorthSouth" ToolTip.Tip="{i18n:Tr UI_Tip_CropTop}" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,-4,0,0" PointerPressed="OnCropPointerPressed" PointerMoved="OnCropPointerMoved" PointerReleased="OnCropPointerReleased"/>
+                                            <Border Name="CropBottom" Classes="cropNodeV" Cursor="SizeNorthSouth" ToolTip.Tip="{i18n:Tr UI_Tip_CropBottom}" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,-4" PointerPressed="OnCropPointerPressed" PointerMoved="OnCropPointerMoved" PointerReleased="OnCropPointerReleased"/>
+                                            <Border Name="CropLeft" Classes="cropNodeH" Cursor="SizeWestEast" ToolTip.Tip="{i18n:Tr UI_Tip_CropLeft}" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="-4,0,0,0" PointerPressed="OnCropPointerPressed" PointerMoved="OnCropPointerMoved" PointerReleased="OnCropPointerReleased"/>
+                                            <Border Name="CropRight" Classes="cropNodeH" Cursor="SizeWestEast" ToolTip.Tip="{i18n:Tr UI_Tip_CropRight}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,-4,0" PointerPressed="OnCropPointerPressed" PointerMoved="OnCropPointerMoved" PointerReleased="OnCropPointerReleased"/>
+
+                                            <Thumb Name="ResizeTopLeft" Classes="node" Cursor="TopLeftCorner" ToolTip.Tip="{i18n:Tr UI_Tip_Scale}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="-5,-5,0,0" DragStarted="OnResizeDragStarted" DragDelta="OnResizeDragDelta"/>
+                                            <Thumb Name="ResizeTopRight" Classes="node" Cursor="TopRightCorner" ToolTip.Tip="{i18n:Tr UI_Tip_Scale}" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,-5,-5,0" DragStarted="OnResizeDragStarted" DragDelta="OnResizeDragDelta"/>
+                                            <Thumb Name="ResizeBottomLeft" Classes="node" Cursor="BottomLeftCorner" ToolTip.Tip="{i18n:Tr UI_Tip_Scale}" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="-5,0,0,-5" DragStarted="OnResizeDragStarted" DragDelta="OnResizeDragDelta"/>
+                                            <Thumb Name="ResizeBottomRight" Classes="node" Cursor="BottomRightCorner" ToolTip.Tip="{i18n:Tr UI_Tip_Scale}" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,-5,-5" DragStarted="OnResizeDragStarted" DragDelta="OnResizeDragDelta"/>
+                                        </Grid>
+
+                                        <!-- Giro: los cuatro hacen lo mismo, girar todo lo
+                                             seleccionado alrededor de su centro. -->
+                                        <Grid IsVisible="{Binding IsRotationMode}">
+                                            <Border Classes="rotateNode" ToolTip.Tip="{i18n:Tr UI_Tip_Rotate}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="-8,-8,0,0" PointerPressed="OnRotatePointerPressed" PointerMoved="OnRotatePointerMoved" PointerReleased="OnRotatePointerReleased">
+                                                <TextBlock Text="↻" Foreground="#11111B" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                            </Border>
+                                            <Border Classes="rotateNode" ToolTip.Tip="{i18n:Tr UI_Tip_Rotate}" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,-8,-8,0" PointerPressed="OnRotatePointerPressed" PointerMoved="OnRotatePointerMoved" PointerReleased="OnRotatePointerReleased">
+                                                <TextBlock Text="↻" Foreground="#11111B" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                            </Border>
+                                            <Border Classes="rotateNode" ToolTip.Tip="{i18n:Tr UI_Tip_Rotate}" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="-8,0,0,-8" PointerPressed="OnRotatePointerPressed" PointerMoved="OnRotatePointerMoved" PointerReleased="OnRotatePointerReleased">
+                                                <TextBlock Text="↻" Foreground="#11111B" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                            </Border>
+                                            <Border Classes="rotateNode" ToolTip.Tip="{i18n:Tr UI_Tip_Rotate}" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,-8,-8" PointerPressed="OnRotatePointerPressed" PointerMoved="OnRotatePointerMoved" PointerReleased="OnRotatePointerReleased">
+                                                <TextBlock Text="↻" Foreground="#11111B" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Encima de todo, el recuadro de selección que se dibuja al arrastrar sobre
+                         el lienzo vacío (lo mueve MainWindow.axaml.cs). No recibe el ratón, para no
+                         tapar los clics. -->
+                    <Canvas IsHitTestVisible="False">
+                        <Rectangle Name="SelectionBox"
+                                   Fill="#3389B4FA"
+                                   Stroke="#89B4FA"
+                                   StrokeThickness="1"
+                                   IsVisible="False"/>
+                    </Canvas>
+
+                </Panel>
+            </Viewbox>
+
+            <!-- 3. El editor de código, en lugar del lienzo cuando está abierto. -->
+            <Border IsVisible="{Binding IsCodeEditorVisible}" Margin="0" Background="#11111B" CornerRadius="0">
+
+                <Grid RowDefinitions="Auto, *">
+
+                    <!-- Cabecera: el archivo abierto y, a la derecha, el último aviso (por ejemplo,
+                         que theme.json es de solo lectura). -->
+                    <Border Grid.Row="0" Background="#181825" BorderBrush="#313244" BorderThickness="0,0,0,1" Padding="12,8">
+                        <Grid ColumnDefinitions="Auto, *">
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding CodeEditorVM.CurrentFileName}"
+                                       Foreground="#CDD6F4" FontWeight="Bold" FontSize="13"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding CodeEditorVM.StatusMessage}"
+                                       Foreground="#A6E3A1" FontSize="12"
+                                       VerticalAlignment="Center" HorizontalAlignment="Right"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- El editor (AvaloniaEdit). La fuente se fija a mano para que NO herede la
+                         ExtraBold de la interfaz: una letra proporcional y gruesa en un editor de
+                         código descuadra el theme.json y el engine.js, que es justo donde hace
+                         falta leer columnas. -->
+                    <ae:TextEditor Grid.Row="1"
+                                   Document="{Binding CodeEditorVM.EditorDocument}"
+                                   SyntaxHighlighting="{Binding CodeEditorVM.SyntaxHighlighting}"
+                                   ShowLineNumbers="True"
+                                   Background="Transparent"
+                                   Foreground="#CDD6F4"
+                                   FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace"
+                                   FontSize="14"
+                                   Margin="0,5,0,0"/>
+                </Grid>
+
+            </Border>
+                </Panel>
+            </Grid>
+        </Panel>
+        <!-- ========================================== -->
+        <!-- COLUMNA DERECHA: PANEL LATERAL             -->
+        <!-- ========================================== -->
+        <Border Grid.Column="2"
+                Background="#181825"
+                BorderBrush="#313244"
+                BorderThickness="1,0,0,0">
+
+            <!-- El panel lateral que toque (CurrentSidePanel), con un fundido al cambiar. -->
+            <TransitioningContentControl Content="{Binding CurrentSidePanel}">
+                <!-- Qué vista va con cada panel. La caja de herramientas no tiene estado propio:
+                     todos sus botones hablan con MainWindowViewModel, así que ese es su panel.
+                     OJO: un panel lateral nuevo necesita aquí su DataTemplate. Sin ella no hay
+                     error al compilar: el panel pinta el nombre de su tipo en vez de la vista. -->
+                <TransitioningContentControl.DataTemplates>
+                    <DataTemplate DataType="vm:MainWindowViewModel"><views:ToolboxView/></DataTemplate>
+                    <DataTemplate DataType="vm:PropertiesViewModel"><views:PropertiesView/></DataTemplate>
+                    <DataTemplate DataType="vm:CodeEditorSideViewModel"><views:CodeEditorSideView/></DataTemplate>
+                </TransitioningContentControl.DataTemplates>
+                <TransitioningContentControl.PageTransition>
+                    <CrossFade Duration="0:0:0.25" />
+                </TransitioningContentControl.PageTransition>
+            </TransitioningContentControl>
+
+        </Border>
+    </Grid>
+</Window>

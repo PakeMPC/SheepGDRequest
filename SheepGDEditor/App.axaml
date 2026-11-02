@@ -1,0 +1,34 @@
+<!--
+    La aplicación: el tema oscuro de Fluent, los estilos de los controles de terceros (AvaloniaEdit
+    y el selector de color), los estilos compartidos con SheepGDRequest y las dos fuentes propias
+    del Editor. El código está en App.axaml.cs.
+-->
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SheepGDEditor.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <!-- Las fuentes viven aquí y NO en EstilosSheepGD.axaml, porque una URI avares:// lleva el
+             nombre del ensamblado y no resolvería desde SheepGDRequest. FuenteTitulos es la de toda
+             la interfaz; FuenteGD (Pusab, la de Geometry Dash) hoy no la usa ninguna vista del
+             Editor, pero las dos aplicaciones definen los mismos recursos. -->
+        <FontFamily x:Key="FuenteTitulos">avares://SheepGDEditor/Assets/OpenSans-ExtraBold.ttf</FontFamily>
+        <FontFamily x:Key="FuenteGD">avares://SheepGDEditor/Assets/pusab.otf#Pusab</FontFamily>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <!-- Las plantillas de AvaloniaEdit (el editor de código) y del selector de color (el
+             ColorView del panel de propiedades). Sin ellas, esos controles no se dibujan. -->
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+        <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+        <!-- Compartido con SheepGDRequest (está en Shared/ y se enlaza desde los dos .csproj). Va
+             EL ÚLTIMO para poder sobreescribir a los de arriba. -->
+        <StyleInclude Source="avares://SheepGDEditor/Assets/EstilosSheepGD.axaml"/>
+        <!-- La fuente monoespaciada del editor de código va en el propio TextEditor, en
+             MainWindow.axaml. (Aquí había un estilo con otra lista de fuentes que no llegaba a
+             usarse nunca, porque un valor puesto en el control gana a un estilo.) -->
+    </Application.Styles>
+
+</Application>
