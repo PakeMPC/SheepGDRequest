@@ -24,8 +24,9 @@ queue. Whatever you do in one shows up instantly in the other two.
 
 **All your chats at once**
 
-- **SheepChat, SocialStream.Ninja, StreamElements, TikTok Live, Discord** and **any other web
-  chat**: up to ten links at the same time, in any mix.
+- **Twitch, YouTube, Kick, TikTok Live** and **Discord**, plus **SheepChat, SocialStream.Ninja,
+  StreamElements** and **any other web chat**: up to ten links at the same time, in any mix. For
+  Twitch, YouTube and Kick, just paste your channel link: no accounts or keys needed.
 - If a source drops (the page reloads, the network goes down), it **reconnects on its own** and
   lets you know when it went down and when it came back.
 - **Moderated Discord:** optionally, a level only joins the queue once a moderator reacts to the
@@ -35,8 +36,9 @@ queue. Whatever you do in one shows up instantly in the other two.
 
 - Your own commands (`!add`, `!request`…) and automatic detection of level IDs posted in chat.
 - **Difficulty filter:** only Demons, nothing above Insane, everything except Auto… whatever you
-  want.
-- Rated levels only, no repeats, IDs only, a blacklist, a per-viewer limit and a total queue limit.
+  want. Plus **classic levels only** or **platformer levels only**.
+- Rated levels only, no repeats (levels you already played count too), IDs only, a blacklist, a
+  per-viewer limit and a total queue limit.
 - Built-in anti-spam, and a button to **pause requests** without disconnecting anything.
 
 **Every level, with all its info**
@@ -124,6 +126,15 @@ every desktop distribution already includes.
 
 ## Getting started
 
+Download the latest version from [Releases](https://github.com/PakeMPC/SheepGDRequest/releases/latest):
+
+- **Windows:** `SheepGD-win-x64.zip`. Unzip it anywhere you can write to (not inside "Program
+  Files") and open `SheepGDRequest.exe`.
+- **Linux:** `SheepGDRequest-Linux-x86_64.AppImage` and `SheepGDEditor-Linux-x86_64.AppImage`. Keep
+  them in the same folder and make them executable (`chmod +x *.AppImage`).
+
+Then:
+
 1. **Open SheepGDRequest** and pick your language.
 2. In **Settings**, paste your chat links, choose the platform for each one and click **Save
    changes**. For Discord, also paste your bot token ("Get token" takes you to the developer
@@ -134,8 +145,9 @@ every desktop distribution already includes.
 5. **Geometry Dash:** click **Install Geode Mod**. The app finds your GD folder, downloads the
    latest version of the mod and installs it. Restart the game and click the sheep in the main menu.
 
-When a new version of the mod comes out, the app tells you on startup and installs it with one
-click.
+When a new version of SheepGD or of the mod comes out, the app tells you on startup and installs
+it with one click. SheepGD restarts by itself, and SheepGDEditor is updated along with it. You can
+also check by hand with **Check for updates** in Settings.
 
 ## Your data
 
@@ -154,7 +166,7 @@ know instead of overwriting it.
 
 There are no SheepGD servers and no telemetry. The app only connects to:
 
-- the chat pages you give it, and the TikTok or Discord API if you use them;
+- the chat pages you give it, Twitch's chat server, and the TikTok or Discord API if you use them;
 - the **Geometry Dash**, **GDDL** (gdladder.com) and **AREDL** (aredl.net) servers for level data,
   and **levelthumbs.prevter.me** for thumbnails;
 - **GitHub**, to find and download the latest version of the mod;
@@ -186,8 +198,11 @@ The Geode mod (C++23 · Geode 5.9.0) has its own repository:
 - Open `SheepGDWorkspace.slnx` in Rider or Visual Studio, or use `dotnet build`. The projects
   target `net8.0`, but you need the **.NET 9 SDK or newer**: Avalonia 12's source generators
   require Roslyn 4.14.
-- To publish: `dotnet publish -c Release -r win-x64 --self-contained true` (or `linux-x64`). The
-  result is a self-contained folder. It can't be published as a single file, because Playwright
+- To publish a release, run `bash build/publicar.sh` on Linux. It builds the Windows zip and the
+  two AppImages into `publish/`, with the names the in-app updater looks for. The version comes
+  from `Directory.Build.props`, and the GitHub release must be tagged with it (`v1.1.0`).
+  `--subir` also creates the release as a draft with `gh`.
+- Each app is a self-contained folder. It can't be published as a single file, because Playwright
   needs its `.playwright` folder next to the executable.
 
 ### The shared file: `queue_data.json`

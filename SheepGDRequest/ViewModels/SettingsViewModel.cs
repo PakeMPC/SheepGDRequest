@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SheepGDRequest.Helpers;
 using SheepGDRequest.Models;
 using SheepGDRequest.Services;
 using Avalonia.Controls;
@@ -86,6 +88,7 @@ public partial class SettingsViewModel : ViewModelBase
     public DifficultyFilterCondition[] AvailableConditions => (DifficultyFilterCondition[])Enum.GetValues(typeof(DifficultyFilterCondition));
     public DifficultyRating[] AvailableDifficulties => (DifficultyRating[])Enum.GetValues(typeof(DifficultyRating));
     public TimeUnit[] AvailableTimeUnits => (TimeUnit[])Enum.GetValues(typeof(TimeUnit));
+    public LevelTypeFilter[] AvailableLevelTypes => (LevelTypeFilter[])Enum.GetValues(typeof(LevelTypeFilter));
 
     // === SISTEMA DE IDIOMAS ===
     public LanguageItem[] AvailableLanguages { get; } = new[]
@@ -287,8 +290,8 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>
     /// Cierra las conexiones de Playwright, borra los perfiles del navegador (las sesiones
     /// guardadas) y vuelve a conectar esos enlaces; los de "Otro" vuelven a pedir el inicio de
-    /// sesión. TikTok y Discord no usan el navegador y no se tocan. Para borrar la sesión de un
-    /// solo enlace "Otro" está <see cref="ReLoginChatLink"/>.
+    /// sesión. Twitch, TikTok y Discord no usan el navegador y no se tocan. Para borrar la sesión
+    /// de un solo enlace "Otro" está <see cref="ReLoginChatLink"/>.
     /// </summary>
     [RelayCommand]
     private async Task ClearCache()
@@ -320,8 +323,7 @@ public partial class SettingsViewModel : ViewModelBase
         // dejarlas así sería peor que conectarlas con la sesión que hubiera quedado.
         foreach (var link in Settings.ChatLinks.ToList())
         {
-            bool usaNavegador = link.Platform != ChatPlatform.TikTok && link.Platform != ChatPlatform.Discord;
-            if (usaNavegador && !string.IsNullOrWhiteSpace(link.Url))
+            if (SheepChatListener.UsaNavegador(link.Platform) && !string.IsNullOrWhiteSpace(link.Url))
                 await SheepChatListener.RestartWidgetAsync(link);
         }
     }
@@ -433,11 +435,21 @@ public partial class SettingsViewModel : ViewModelBase
     ///       └── SheepGDRequest/   &lt;- este programa
     /// En una instalación real basta con subir un nivel y entrar en SheepGDEditor.
     ///
+    /// En Linux, con AppImages, el programa corre desde el AppImage montado y esa estructura no
+    /// existe: el Editor es otro AppImage, el que está junto al de este programa.
+    ///
     /// En desarrollo eso no sirve, porque el programa se ejecuta desde bin/Debug/net8.0. Por eso
     /// hay candidatos que apuntan a la salida de compilación del Editor.
     /// </summary>
     private static string? BuscarEjecutableDelEditor()
     {
+        string? appImage = ActualizacionService.AppImageEnUso();
+        if (appImage != null)
+        {
+            string? editorAppImage = ActualizacionService.AppImageDelEditorJunto(appImage);
+            if (editorAppImage != null) return editorAppImage;
+        }
+
         string exe = OperatingSystem.IsWindows() ? "SheepGDEditor.exe" : "SheepGDEditor";
         string baseDir = AppPaths.AppDir;
 
@@ -669,6 +681,123 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    // ==========================================
+    // ACTUALIZACIONES DEL PROGRAMA
+    // ==========================================
+    private readonly ActualizacionService _actualizaciones = new();
+
+    // Evita dos comprobaciones a la vez (la del arranque y el botón, por ejemplo).
+    private bool _comprobandoActualizacion;
+
+    /// <summary>Versión de esta copia, como se muestra en Herramientas ("v1.1.0").</summary>
+    public string VersionDelPrograma => Mostrar(ActualizacionService.VersionActual);
+
+    /// <summary>
+    /// Botón "Buscar actualizaciones": la misma comprobación que al arrancar, pero avisa también
+    /// si ya está al día o si no se pudo consultar GitHub.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckAppUpdates()
+    {
+        var ventana = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (ventana != null) await ComprobarActualizacionDelProgramaAsync(ventana, manual: true);
+    }
+
+    /// <summary>
+    /// Mira si hay una versión del programa más nueva en GitHub y, si la hay, muestra el aviso.
+    /// Al pulsar "Actualizar":
+    ///   - En la carpeta portable de Windows, descarga y prepara la versión nueva, arranca el
+    ///     lanzador nuevo en modo "aplicar" y cierra el programa. El lanzador cambia las carpetas
+    ///     y lo vuelve a abrir.
+    ///   - En un AppImage de Linux, sustituye el AppImage (y el del Editor, si está al lado),
+    ///     cierra el programa y abre el nuevo.
+    ///   - En cualquier otra copia (desarrollo, una carpeta sin permiso de escritura), abre la
+    ///     página de la release.
+    /// Si algo falla, avisa en el panel y abre la página de la release, para que el usuario pueda
+    /// descargarla a mano. La llama MainWindow una vez por arranque y el botón de Herramientas.
+    /// No lanza excepciones.
+    /// </summary>
+    /// <param name="ventana">Ventana principal: sobre ella se muestran los avisos y es la que se
+    /// cierra para aplicar la actualización.</param>
+    /// <param name="manual">Si la pidió el usuario: entonces también se avisa de "ya está al día"
+    /// y de un fallo al consultar GitHub, que al arrancar solo van a la consola.</param>
+    /// <returns>true si se está aplicando una actualización y el programa se va a cerrar.</returns>
+    public async Task<bool> ComprobarActualizacionDelProgramaAsync(Window ventana, bool manual = false)
+    {
+        if (_comprobandoActualizacion) return false;
+        _comprobandoActualizacion = true;
+
+        UpdateAppDialog.Progreso? progreso = null;
+        ReleaseDelPrograma? release = null;
+        try
+        {
+            var actual = ActualizacionService.VersionActual;
+
+            release = await _actualizaciones.ObtenerUltimaReleaseAsync();
+            if (release == null)
+            {
+                Console.WriteLine(I18n.Tr("Log_AppUpdateCheckFailed"));
+                if (manual) await AvisarAsync("Warning", "Notif_AppUpdateCheckFailed");
+                return false;
+            }
+
+            if (release.Version <= actual)
+            {
+                if (manual) await AvisarAsync("Info", "Notif_AppUpToDate", Mostrar(actual));
+                return false;
+            }
+
+            Console.WriteLine(string.Format(I18n.Tr("Log_AppUpdateAvailable"), Mostrar(release.Version), Mostrar(actual)));
+
+            var forma = ActualizacionService.DetectarForma();
+            var respuesta = await UpdateAppDialog.PreguntarAsync(ventana, Mostrar(release.Version), Mostrar(actual),
+                release.Notas, forma != FormaDeActualizar.SoloPagina);
+            if (respuesta != RespuestaActualizacion.Actualizar) return false;
+
+            if (forma == FormaDeActualizar.SoloPagina)
+            {
+                Console.WriteLine(I18n.Tr("Log_AppUpdateManualOnly"));
+                ActualizacionService.AbrirPagina(release.UrlPagina);
+                return false;
+            }
+
+            progreso = UpdateAppDialog.MostrarProgreso(ventana);
+            ProcessStartInfo reabrir;
+
+            if (forma == FormaDeActualizar.Windows)
+            {
+                reabrir = await _actualizaciones.PrepararWindowsAsync(release, progreso);
+            }
+            else
+            {
+                string appImage = await _actualizaciones.ReemplazarAppImagesAsync(release, progreso);
+                reabrir = ActualizacionService.ComoReabrirAppImage(appImage);
+            }
+
+            progreso.Preparando();
+            Process.Start(reabrir);
+            Console.WriteLine(string.Format(I18n.Tr("Log_AppUpdateRestarting"), Mostrar(release.Version)));
+
+            // El cierre normal de la ventana guarda los ajustes antes de terminar. En Windows, el
+            // lanzador espera a que este proceso acabe para cambiar las carpetas.
+            progreso.Cerrar();
+            ventana.Close();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            progreso?.Cerrar();
+            Console.WriteLine(string.Format(I18n.Tr("Log_AppUpdateError"), ex.Message));
+            await AvisarAsync("Warning", "Notif_AppUpdateFailed");
+            if (release != null) ActualizacionService.AbrirPagina(release.UrlPagina);
+            return false;
+        }
+        finally
+        {
+            _comprobandoActualizacion = false;
+        }
+    }
+
     /// <summary>
     /// La carpeta de Geometry Dash que se conoce sin preguntar: la guardada en los ajustes si
     /// todavía existe y, si no, la que detecta GeometryDashLocator. Null si no hay ninguna.
@@ -748,7 +877,11 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Vacía la cola de espera. El nivel actual y el historial no cambian.
+    /// Vacía la cola de espera y el historial. El nivel actual no cambia.
+    ///
+    /// El historial se vacía porque el filtro de repetidos lo tiene en cuenta: sin esto, los
+    /// niveles jugados en un directo seguirían bloqueados en el siguiente. A cambio, "Anterior"
+    /// ya no puede volver a esos niveles.
     /// </summary>
     [RelayCommand]
     private async Task ClearAllRequests()
@@ -757,6 +890,7 @@ public partial class SettingsViewModel : ViewModelBase
         await vm.QueueService.ModificarAsync(state =>
         {
             state.Queue.Clear();
+            state.History.Clear();
             return true;
         });
         Console.WriteLine(I18n.Tr("Log_QueueCleared"));

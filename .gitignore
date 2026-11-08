@@ -23,3 +23,6 @@ PlaceHolders/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Herramientas que descarga build/publicar.sh (appimagetool)
+build/.herramientas/

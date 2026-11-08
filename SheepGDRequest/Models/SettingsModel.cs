@@ -13,8 +13,16 @@ namespace SheepGDRequest.Models;
 /// <summary>
 /// Plataforma de cada enlace de chat. Otro sirve para cualquier página de chat que no sea de
 /// las anteriores.
+///
+/// El orden es el del desplegable de Ajustes: primero las plataformas de streaming, que es lo que
+/// busca la mayoría, y después los agregadores y la opción universal. Se puede cambiar sin romper
+/// nada porque settings.json guarda el nombre, no la posición. El primer valor es también el que
+/// toma un nombre que no se reconoce al leer los ajustes (SettingsService).
 /// </summary>
-public enum ChatPlatform { SheepChat, SocialStreamNinja, StreamElements, TikTok, Discord, Otro }
+public enum ChatPlatform
+{
+    Twitch, YouTube, Kick, TikTok, Discord, SheepChat, SocialStreamNinja, StreamElements, Otro
+}
 
 /// <summary>
 /// Condición del filtro de dificultad: solo esa dificultad, todas menos esa, hasta esa (como
@@ -36,6 +44,12 @@ public enum DifficultyRating { Todos, None, Auto, Easy, Normal, Hard, Harder, In
 /// Unidad del tiempo que dura cada nivel con el auto-skip.
 /// </summary>
 public enum TimeUnit { Segundos, Minutos, Horas }
+
+/// <summary>
+/// Filtro por tipo de nivel: todos, solo los clásicos (de cubo, nave, etc.) o solo los de
+/// plataforma. Todos va primero porque es también el valor que toman los ajustes que no lo tenían.
+/// </summary>
+public enum LevelTypeFilter { Todos, SoloClasicos, SoloPlataforma }
 
 
 
@@ -59,7 +73,7 @@ public partial class ChatLinkModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UsaInicioDeSesion))]
-    private ChatPlatform _platform = ChatPlatform.SheepChat;
+    private ChatPlatform _platform = ChatPlatform.Twitch;
 
     /// <summary>
     /// Si el enlace guarda una sesión iniciada por el usuario (solo "Otro"). Muestra en Ajustes el
@@ -190,6 +204,13 @@ public partial class SettingsModel : ObservableObject
     private DifficultyRating _targetDifficulty = DifficultyRating.Todos;
 
     /// <summary>
+    /// Qué tipo de nivel se acepta: clásicos, de plataforma o los dos. Se comprueba con la duración
+    /// que da GD, que en los de plataforma es "Plat.".
+    /// </summary>
+    [ObservableProperty]
+    private LevelTypeFilter _levelTypeFilter = LevelTypeFilter.Todos;
+
+    /// <summary>
     /// Si está activo, se rechazan los niveles sin estrellas.
     /// </summary>
     [ObservableProperty]
@@ -238,8 +259,9 @@ public partial class SettingsModel : ObservableObject
     private bool _alwaysOnTop = true;
 
     /// <summary>
-    /// Permite pedir un nivel que ya está en juego o en la cola. El historial no cuenta: un
-    /// nivel ya jugado se puede volver a pedir siempre.
+    /// Permite pedir un nivel que ya está en juego, en la cola o en el historial. Si está apagado,
+    /// también se rechazan los niveles ya jugados (pasados con "Siguiente"); los eliminados con la
+    /// papelera no cuentan. Ver GenericListener.EsRepetido.
     /// </summary>
     [ObservableProperty]
     private bool _allowRepeatedLevels = false;

@@ -18,7 +18,8 @@ public class QueueState
     /// Niveles ya jugados, el más reciente al final. Lo llenan NextLevel y RandomLevel, y
     /// PreviousLevel recupera de aquí el nivel anterior. QueueFileService lo recorta a los últimos
     /// <see cref="Services.QueueFileService.MaxHistorial"/> al guardar; el mod solo lo usa para
-    /// volver al nivel anterior.
+    /// volver al nivel anterior. También cuenta para el filtro de repetidos (GenericListener), y
+    /// "Borrar todos los niveles enviados" lo vacía.
     /// </summary>
     public List<LevelRequestModel> History { get; set; } = new();
 

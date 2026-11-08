@@ -291,7 +291,7 @@ public class GenericListener
     /// Procesador central: decide si una petición entra en la cola y, si es así, la añade. Las
     /// comprobaciones baratas van primero y la búsqueda en GD (lenta y con reintentos) lo más
     /// tarde posible: antispam, peticiones activadas, límite global, solo IDs, límite por usuario,
-    /// búsqueda en GD, repetidos, lista negra, rate, dificultad y alta en la cola.
+    /// búsqueda en GD, repetidos, lista negra, rate, tipo de nivel, dificultad y alta en la cola.
     ///
     /// Casi todos los rechazos dejan una línea en la consola y, si el ajuste de avisos
     /// correspondiente está activo, una notificación. No lanza excepciones: cualquier error
@@ -517,6 +517,21 @@ public class GenericListener
                 levelRejected = true; rejectReasonKey = "FilterReason_Unrated";
             }
 
+            // 7.5 Filtro por tipo de nivel. GD marca los de plataforma con la duración "Plat."
+            // (GeometryDashService), y es lo único que los distingue de un clásico.
+            if (!levelRejected && config.LevelTypeFilter != LevelTypeFilter.Todos)
+            {
+                bool esPlataforma = levelModel.Length == "Plat.";
+                if (config.LevelTypeFilter == LevelTypeFilter.SoloClasicos && esPlataforma)
+                {
+                    levelRejected = true; rejectReasonKey = "FilterReason_OnlyClassic";
+                }
+                else if (config.LevelTypeFilter == LevelTypeFilter.SoloPlataforma && !esPlataforma)
+                {
+                    levelRejected = true; rejectReasonKey = "FilterReason_OnlyPlatformer";
+                }
+            }
+
             // 8. Filtro de dificultad
             // isDemon comprueba el rango del enum: "Cualquier Demon" coincide con los cinco demons.
             if (!levelRejected && config.TargetDifficulty != DifficultyRating.Todos)
@@ -650,13 +665,18 @@ public class GenericListener
     }
 
     /// <summary>
-    /// Repetido: el nivel ya está en juego o en la cola (salvo que se permitan los repetidos).
+    /// Repetido (salvo que se permitan los repetidos): el nivel está en juego, en la cola o en el
+    /// historial, es decir, en cualquier parte de queue_data.json. Un nivel que se pasó con
+    /// "Siguiente" sigue contando; uno que se eliminó con la papelera no, porque eliminar no lo
+    /// lleva al historial. "Borrar todos los niveles enviados" vacía también el historial, para
+    /// empezar cada directo sin los niveles del anterior.
     /// </summary>
     private static bool EsRepetido(QueueState state, SettingsModel config, string levelId)
     {
         if (config.AllowRepeatedLevels) return false;
         return (state.CurrentLevel != null && state.CurrentLevel.LevelId == levelId)
-               || state.Queue.Any(l => l.LevelId == levelId);
+               || state.Queue.Any(l => l.LevelId == levelId)
+               || state.History.Any(l => l.LevelId == levelId);
     }
 
     /// <summary>

@@ -77,9 +77,13 @@ public class StreamElementsListener
         // procesadas y la espera termina. Si no llega ninguna ráfaga, la espera termina sola a los
         // 5 s; hasta entonces, todo lo que llega se marca y se omite.
         //
-        // La plataforma se deduce del contenedor en el que está la línea y, si no lo dice, de las
-        // insignias y del nick (los de YouTube llevan @ delante). Nunca del texto del mensaje:
-        // un mensaje de Twitch que contenga "youtube" debe seguir siendo de Twitch.
+        // La plataforma se deduce primero de la propia línea, sin el texto ni el nombre: sus
+        // insignias y enlaces (kick-badges, kick.com, youtube) y el nick, que en YouTube lleva @
+        // delante. Solo si la línea no dice nada se mira el contenedor, y "twitch" en la línea va
+        // al final. El contenedor no puede ir primero: un widget que junta varias plataformas
+        // puede estar dentro de un contenedor de Twitch, y entonces los mensajes de Kick se
+        // marcaban como de Twitch. El texto y el nombre se quitan porque un mensaje de Twitch que
+        // diga "youtube", o un usuario llamado así, debe seguir siendo de Twitch.
         string script = @"
             let isReady = false;
 
@@ -132,16 +136,16 @@ public class StreamElementsListener
                         let rawNick = userNode.innerText.trim();
 
                         let meta = line.cloneNode(true);
-                        let metaMsg = meta.querySelector('.message, .text');
-                        if (metaMsg) metaMsg.remove();
+                        meta.querySelectorAll('.message, .text, .username, .name, .nickname')
+                            .forEach(n => n.remove());
                         let metaHtml = meta.innerHTML.toLowerCase();
 
                         let detectedPlatform = 'streamelements';
-                        if (line.closest('se-widget-kick-chat, kick-chat, .kick-chat')) detectedPlatform = 'kick';
+                        if (metaHtml.includes('kick-badges') || metaHtml.includes('kick.com')) detectedPlatform = 'kick';
+                        else if (rawNick.startsWith('@') || metaHtml.includes('youtube')) detectedPlatform = 'youtube';
+                        else if (line.closest('se-widget-kick-chat, kick-chat, .kick-chat')) detectedPlatform = 'kick';
                         else if (line.closest('se-widget-youtube-chat, youtube-chat, .youtube-chat')) detectedPlatform = 'youtube';
                         else if (line.closest('se-widget-twitch-chat, twitch-chat, .twitch-chat')) detectedPlatform = 'twitch';
-                        else if (metaHtml.includes('kick-badges') || metaHtml.includes('kick.com')) detectedPlatform = 'kick';
-                        else if (rawNick.startsWith('@') || metaHtml.includes('youtube')) detectedPlatform = 'youtube';
                         else if (metaHtml.includes('twitch')) detectedPlatform = 'twitch';
 
                         if (rawNick.startsWith('@')) rawNick = rawNick.substring(1);

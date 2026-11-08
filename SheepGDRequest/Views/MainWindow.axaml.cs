@@ -71,8 +71,19 @@ public partial class MainWindow : Window
             Height = settings.WindowHeight;
         }
 
-        // 3. Con la ventana ya en su sitio, se mira si hay una versión nueva del mod de Geode. Va
-        // al final para que el aviso no se cruce con el selector de idioma del primer arranque.
+        // 3. Restos de una actualización anterior (la carpeta de preparación, las versiones
+        // apartadas). Con unos segundos de margen: el lanzador que la aplicó puede seguir abierto.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(15));
+            ActualizacionService.LimpiarRestos();
+        });
+
+        // 4. Con la ventana ya en su sitio, se mira si hay una versión nueva del programa y luego
+        // del mod de Geode. Van al final para que los avisos no se crucen con el selector de
+        // idioma del primer arranque. Si se está aplicando una actualización del programa, la
+        // ventana se está cerrando y lo del mod se deja para el siguiente arranque.
+        if (await vm.ComprobarActualizacionDelProgramaAsync(this)) return;
         await vm.ComprobarActualizacionDelModAsync(this);
     }
 

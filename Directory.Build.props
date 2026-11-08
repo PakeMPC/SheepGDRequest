@@ -1,0 +1,8 @@
+<Project>
+    <!-- Versión de SheepGD. La comparten SheepGDRequest y SheepGDEditor, que se publican juntos.
+         La release de GitHub se etiqueta con este mismo número y una "v" delante (v1.1.0): el
+         aviso de actualización compara esa etiqueta con la versión del programa. -->
+    <PropertyGroup>
+        <Version>1.1.0</Version>
+    </PropertyGroup>
+</Project>

@@ -19,36 +19,47 @@ namespace SheepGDRequest.Services;
 /// Coordina todas las fuentes de chat: decide cómo se conecta cada enlace guardado y lleva el
 /// registro de las conexiones activas para poder detenerlas o reiniciarlas.
 ///
-/// SheepChat, SocialStream.Ninja, StreamElements y "Otro" se leen con Playwright: un Chromium,
-/// invisible salvo durante el inicio de sesión de "Otro", abre la web del chat y un script
-/// inyectado envía los mensajes a C#, que extrae las peticiones de niveles. TikTok y Discord
-/// solo pasan por aquí para redirigirse: tienen su propio listener (API de TikTok, bot de
-/// Discord) y no abren navegador.
+/// YouTube, Kick, SheepChat, SocialStream.Ninja, StreamElements y "Otro" se leen con Playwright:
+/// un Chromium, invisible salvo durante el inicio de sesión de "Otro", abre la web del chat y un
+/// script inyectado envía los mensajes a C#, que extrae las peticiones de niveles. Twitch se lee
+/// sin navegador, por su chat oficial (<see cref="TwitchListener"/>). TikTok y Discord solo pasan
+/// por aquí para redirigirse: tienen su propio listener (API de TikTok, bot de Discord).
 ///
-/// Cada fuente de Playwright vive en un bucle de reconexión (<see cref="MantenerConexionAsync"/>):
-/// si Chromium se cierra o falla al arrancar, se vuelve a intentar con una espera creciente,
-/// hasta que se detiene el enlace.
+/// Cada fuente de Playwright, y Twitch, vive en un bucle de reconexión
+/// (<see cref="MantenerConexionAsync"/>): si la sesión se cae o falla al arrancar, se vuelve a
+/// intentar con una espera creciente, hasta que se detiene el enlace.
 /// </summary>
 public class SheepChatListener
 {
     /// <summary>
-    /// Una fuente de Playwright en marcha: el cancelador que la detiene y la tarea de su bucle,
-    /// que termina cuando Chromium ya está cerrado.
+    /// Una fuente con bucle de reconexión en marcha: el cancelador que la detiene, la tarea de su
+    /// bucle, que termina cuando la sesión ya está cerrada (y Chromium, si lo usa), y su
+    /// plataforma, para distinguir las que usan navegador (<see cref="UsaNavegador"/>).
     /// </summary>
     private sealed class Conexion
     {
+        public Conexion(ChatPlatform platform) => Platform = platform;
+
+        public ChatPlatform Platform { get; }
         public CancellationTokenSource Cts { get; } = new();
         public Task Tarea { get; set; } = Task.CompletedTask;
     }
 
     /// <summary>
-    /// Fuentes de Playwright, una por enlace, con la clave "{plataforma}_{url}" (ver
+    /// Fuentes de Playwright y de Twitch, una por enlace, con la clave "{plataforma}_{url}" (ver
     /// <see cref="CalcularClave"/>). La entrada se registra antes de lanzar la conexión, así que
     /// detener un enlace funciona también mientras Chromium se descarga o arranca.
     /// Se modifica siempre dentro de <see cref="ConexionesLock"/>.
     /// </summary>
     private static readonly Dictionary<string, Conexion> Conexiones = new();
     private static readonly object ConexionesLock = new();
+
+    /// <summary>
+    /// Si la plataforma se lee con el navegador interno (Playwright) y, por tanto, tiene carpeta
+    /// de perfil. Twitch, TikTok y Discord se conectan sin navegador.
+    /// </summary>
+    public static bool UsaNavegador(ChatPlatform platform) =>
+        platform is not (ChatPlatform.Twitch or ChatPlatform.TikTok or ChatPlatform.Discord);
 
     /// <summary>
     /// Equivalente a <see cref="Conexiones"/> para los bots de Discord, que no usan Playwright.
@@ -223,7 +234,7 @@ public class SheepChatListener
             return;
         }
 
-        var conexion = new Conexion();
+        var conexion = new Conexion(platform);
         Conexion? anterior;
         lock (ConexionesLock)
         {
@@ -231,7 +242,8 @@ public class SheepChatListener
             Conexiones[key] = conexion;
 
             // La nueva conexión espera a que la anterior termine de cerrarse: dos Chromium no
-            // pueden abrir la misma carpeta de perfil a la vez.
+            // pueden abrir la misma carpeta de perfil a la vez, y en Twitch se leería dos veces
+            // cada mensaje.
             Task cierreAnterior = anterior?.Tarea ?? Task.CompletedTask;
             conexion.Tarea = Task.Run(() => MantenerConexionAsync(url, platform, cierreAnterior, conexion.Cts.Token));
         }
@@ -269,8 +281,9 @@ public class SheepChatListener
     /// "Guardar cambios", este último para cada enlace.
     ///
     /// Nota: "Guardar cambios" reinicia todos los enlaces con URL, hayan cambiado o no, y cada
-    /// fuente ignora los mensajes de los primeros segundos tras volver a arrancar (5 s en SheepChat
-    /// y StreamElements, 15 s en "Otro"), porque la web vuelve a mostrar el historial.
+    /// fuente de navegador ignora los mensajes de los primeros segundos tras volver a arrancar (5 s
+    /// en SheepChat, StreamElements y Kick, 6 s en YouTube, 15 s en "Otro"), porque la web vuelve
+    /// a mostrar el historial. Twitch no recibe el historial al conectar.
     /// </summary>
     public static async Task RestartWidgetAsync(ChatLinkModel widget)
     {
@@ -296,7 +309,8 @@ public class SheepChatListener
     /// <summary>
     /// Desconecta un enlace sin volver a abrirlo. Es la contraparte de RestartWidgetAsync y debe
     /// llamarse al borrar un enlace en la interfaz. En las fuentes de Playwright espera a que
-    /// Chromium se haya cerrado. Devuelve true si había una conexión activa.
+    /// Chromium se haya cerrado, y en Twitch, a que se cierre la conexión. Devuelve true si había
+    /// una conexión activa.
     /// </summary>
     public static async Task<bool> StopWidgetAsync(ChatLinkModel widget)
     {
@@ -344,22 +358,23 @@ public class SheepChatListener
     /// <summary>
     /// Detiene todas las fuentes de Playwright y espera a que sus Chromium se cierren. La usa
     /// "Borrar caché" antes de borrar los perfiles. Las fuentes quedan desconectadas hasta que se
-    /// reconecte cada enlace o se guarden los ajustes.
+    /// reconecte cada enlace o se guarden los ajustes. Twitch no usa navegador y sigue conectado.
     /// </summary>
     public static async Task DetenerNavegadoresAsync()
     {
-        List<Conexion> todas;
+        List<Conexion> navegadores;
         lock (ConexionesLock)
         {
-            todas = Conexiones.Values.ToList();
-            Conexiones.Clear();
+            var claves = Conexiones.Where(c => UsaNavegador(c.Value.Platform)).Select(c => c.Key).ToList();
+            navegadores = claves.Select(k => Conexiones[k]).ToList();
+            foreach (string clave in claves) Conexiones.Remove(clave);
         }
 
-        await Task.WhenAll(todas.Select(DetenerAsync));
+        await Task.WhenAll(navegadores.Select(DetenerAsync));
     }
 
     /// <summary>
-    /// Cancela una fuente de Playwright y espera a que su bucle termine, con un límite de
+    /// Cancela una fuente con bucle de reconexión y espera a que su bucle termine, con un límite de
     /// <see cref="EsperaCierreMs"/>.
     /// </summary>
     private static async Task DetenerAsync(Conexion conexion)
@@ -566,11 +581,15 @@ public class SheepChatListener
     }
 
     /// <summary>
-    /// Bucle de vida de una fuente de Playwright: abre una sesión y, si termina sin que nadie la
-    /// haya detenido (Chromium se cierra o falla al arrancar, por ejemplo con el PC recién
-    /// encendido y sin red), espera y vuelve a intentarlo. La espera empieza en 5 s, se duplica
-    /// en cada fallo hasta 2 minutos y vuelve a 5 s cuando una sesión llega a estar activa.
-    /// Termina al cancelar <paramref name="token"/>, siempre con Chromium cerrado.
+    /// Bucle de vida de una fuente de Playwright o de Twitch: abre una sesión y, si termina sin que
+    /// nadie la haya detenido (Chromium o la conexión se cierran, o fallan al arrancar, por ejemplo
+    /// con el PC recién encendido y sin red), espera y vuelve a intentarlo. La espera empieza en
+    /// 5 s, se duplica en cada fallo hasta 2 minutos y vuelve a 5 s cuando una sesión llega a estar
+    /// activa. Termina al cancelar <paramref name="token"/>, siempre con la sesión cerrada.
+    ///
+    /// Si el enlace no sirve para su plataforma (un canal de Twitch o Kick sin nombre válido, un
+    /// enlace de YouTube que no es de un canal ni de un vídeo), lo avisa y no lo intenta: volver a
+    /// probar no lo arreglaría.
     /// </summary>
     /// <param name="cierreAnterior">La conexión anterior del mismo enlace, que se espera a que
     /// termine antes de abrir su carpeta de perfil.</param>
@@ -578,8 +597,27 @@ public class SheepChatListener
     {
         try { await cierreAnterior; } catch { }
 
-        string profileDir = CarpetaDePerfil(platform, url);
-        MigrarPerfilAntiguo(platform, url, profileDir);
+        string? enlaceInvalido = platform switch
+        {
+            ChatPlatform.Twitch when TwitchListener.ExtraerCanal(url).Length == 0 => "Log_TwitchInvalidChannel",
+            ChatPlatform.Kick when ChatsDeStreaming.UrlDeChatDeKick(url) == null => "Log_KickInvalidChannel",
+            ChatPlatform.YouTube when ChatsDeStreaming.IdDeVideoDeYouTube(url) == null
+                                      && ChatsDeStreaming.UrlEnDirectoDeYouTube(url) == null => "Log_YouTubeInvalidUrl",
+            _ => null
+        };
+        if (enlaceInvalido != null)
+        {
+            Console.WriteLine(I18n.Tr(enlaceInvalido));
+            return;
+        }
+
+        // Twitch no tiene carpeta de perfil: no abre navegador.
+        string profileDir = "";
+        if (UsaNavegador(platform))
+        {
+            profileDir = CarpetaDePerfil(platform, url);
+            MigrarPerfilAntiguo(platform, url, profileDir);
+        }
 
         var estado = new EstadoReconexion();
         string nombre = NombreParaAvisos(platform, url);
@@ -588,7 +626,11 @@ public class SheepChatListener
         {
             try
             {
-                await SesionAsync(url, platform, profileDir, () => AlActivarse(estado, platform, nombre), token);
+                Action alActivarse = () => AlActivarse(estado, platform, nombre);
+                if (platform == ChatPlatform.Twitch)
+                    await TwitchListener.SesionAsync(url, alActivarse, token);
+                else
+                    await SesionAsync(url, platform, profileDir, alActivarse, token);
             }
             catch (Exception) when (token.IsCancellationRequested)
             {
@@ -822,9 +864,12 @@ public class SheepChatListener
         // Segundos de cada carga en los que se ignora lo que llega por los puentes.
         // SocialStream.Ninja no los necesita: su script descarta el historial por su cuenta.
         // StreamElements tampoco usa estos puentes: tiene los suyos (ver StreamElementsListener).
+        // En YouTube y Kick es una segunda protección: sus scripts ya descartan el historial.
         int graciaMs = platform switch
         {
             ChatPlatform.SheepChat => 5_000,
+            ChatPlatform.Kick => 5_000,
+            ChatPlatform.YouTube => 6_000,
             ChatPlatform.Otro => 15_000,
             _ => 0
         };
@@ -857,7 +902,7 @@ public class SheepChatListener
             return true;
         });
 
-        // PUENTE 2: DEDICADO (SheepChat y SocialStream.Ninja)
+        // PUENTE 2: DEDICADO (SheepChat, SocialStream.Ninja, YouTube y Kick)
         // Recibe un JSON {platform, user, text} ya separado por el script de la web, así que no
         // hace falta deducir el usuario. El texto pasa por el parser común de GenericListener.
         await page.ExposeFunctionAsync("sendDedicatedData", (string jsonPayload) =>
@@ -897,10 +942,45 @@ public class SheepChatListener
         // =======================================================================
         // CAPTURA SEGÚN LA PLATAFORMA
         // =======================================================================
-        // Los cuatro scripts se registran como init scripts antes de cargar la página, así que se
-        // vuelven a aplicar si la web se recarga.
+        // Los scripts se registran como init scripts antes de cargar la página, así que se vuelven
+        // a aplicar si la web se recarga. YouTube y Kick no abren el enlace del usuario sino el
+        // chat emergente de la plataforma (ver ChatsDeStreaming).
+        string destino = url;
+
+        // Solo YouTube con el enlace de un canal: la página "en directo" del canal, que el
+        // watchdog vuelve a consultar para seguir al directo cuando termina o cambia.
+        string? urlEnDirecto = null;
+        string? idVideo = null;
+
         switch (platform)
         {
+            case ChatPlatform.Kick:
+                destino = ChatsDeStreaming.UrlDeChatDeKick(url)!;
+                Console.WriteLine(string.Format(I18n.Tr("Log_ConnectedInjectingNinja"), platform));
+                await page.AddInitScriptAsync(AlCargarEnDocumentoPrincipal(ChatsDeStreaming.ScriptKick));
+                break;
+
+            case ChatPlatform.YouTube:
+                await context.AddCookiesAsync(new[] { ChatsDeStreaming.CookieDeConsentimiento });
+                idVideo = ChatsDeStreaming.IdDeVideoDeYouTube(url);
+                if (idVideo == null)
+                {
+                    urlEnDirecto = ChatsDeStreaming.UrlEnDirectoDeYouTube(url)!;
+                    string canal = CanalDeYouTube(urlEnDirecto);
+                    Console.WriteLine(string.Format(I18n.Tr("Log_YouTubeSearchingLive"), canal));
+                    idVideo = await ChatsDeStreaming.BuscarDirectoDeYouTubeAsync(context, urlEnDirecto, token);
+
+                    // Sin directo, la sesión falla y el bucle vuelve a mirar con su espera
+                    // creciente (hasta 2 minutos): el chat se conecta solo al empezar el directo.
+                    if (idVideo == null)
+                        throw new InvalidOperationException(string.Format(I18n.Tr("Log_YouTubeNotLive"), canal));
+                    Console.WriteLine(string.Format(I18n.Tr("Log_YouTubeLiveFound"), idVideo));
+                }
+                destino = ChatsDeStreaming.UrlDeChatDeYouTube(idVideo);
+                Console.WriteLine(string.Format(I18n.Tr("Log_ConnectedInjectingNinja"), platform));
+                await page.AddInitScriptAsync(AlCargarEnDocumentoPrincipal(ChatsDeStreaming.ScriptYouTube));
+                break;
+
             case ChatPlatform.SheepChat:
                 Console.WriteLine(string.Format(I18n.Tr("Log_ConnectedInjectingEye"), platform));
                 await page.AddInitScriptAsync(AlCargarEnDocumentoPrincipal(SheepChatScript));
@@ -924,7 +1004,7 @@ public class SheepChatListener
                 break;
         }
 
-        await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await page.GotoAsync(destino, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
 
         // La espera solo retrasa el mensaje de "activo" hasta que de verdad lo está: la puerta ya
         // se cierra y se abre sola en cada carga.
@@ -940,8 +1020,11 @@ public class SheepChatListener
         // WATCHDOG
         // Además de vigilar, este bucle es lo que mantiene la sesión abierta, y con ella Chromium.
         // Termina cuando Chromium o la página se cierran, o al detener el enlace.
+        int vueltas = 0;
+        int directoDistinto = 0;
         while (true)
         {
+            vueltas++;
             await Task.WhenAny(cerrada.Task, Task.Delay(20000, token));
             token.ThrowIfCancellationRequested();
 
@@ -972,8 +1055,35 @@ public class SheepChatListener
                     Console.WriteLine(string.Format(I18n.Tr("Log_WatchdogError"), platform, ex.Message));
                 }
             }
+
+            // En YouTube con el enlace de un canal, cada 3 minutos (9 vueltas de 20 s) se mira si
+            // el directo sigue siendo el mismo. Si termina o empieza otro, la sesión se cierra y
+            // el bucle de reconexión busca el nuevo. Hacen falta dos resultados distintos seguidos:
+            // una sola consulta fallida (YouTube lento, un corte de red) no corta un chat que va
+            // bien.
+            if (urlEnDirecto != null && vueltas % 9 == 0)
+            {
+                string? actual;
+                try { actual = await ChatsDeStreaming.BuscarDirectoDeYouTubeAsync(context, urlEnDirecto, token); }
+                catch (Exception) when (!token.IsCancellationRequested) { actual = idVideo; }
+                token.ThrowIfCancellationRequested();
+
+                directoDistinto = actual == idVideo ? 0 : directoDistinto + 1;
+                if (directoDistinto >= 2)
+                {
+                    Console.WriteLine(string.Format(I18n.Tr("Log_YouTubeLiveChanged"), CanalDeYouTube(urlEnDirecto)));
+                    return;
+                }
+            }
         }
     }
+
+    /// <summary>
+    /// El canal de una página "en directo" de YouTube, para los mensajes de la consola:
+    /// "https://www.youtube.com/@canal/live" da "@canal".
+    /// </summary>
+    private static string CanalDeYouTube(string urlEnDirecto) =>
+        urlEnDirecto.Replace("https://www.youtube.com/", "").Replace("/live", "");
 
     // ================================================================
     // USERAGENT

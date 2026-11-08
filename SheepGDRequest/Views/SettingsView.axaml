@@ -50,7 +50,8 @@
         <TextBlock Text="{i18n:Tr UI_SecNetworkCmds}" Classes="SectionTitle"/>
 
         <!-- Enlaces de chat -->
-        <TextBlock Text="{i18n:Tr UI_ChatLinksTitle}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+        <TextBlock Text="{i18n:Tr UI_ChatLinksTitle}" Foreground="White" FontWeight="Bold" Margin="0,0,0,2"/>
+        <TextBlock Text="{i18n:Tr UI_ChatLinksHelp}" Foreground="#A6ADC8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
         <ItemsControl ItemsSource="{Binding Settings.ChatLinks}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="models:ChatLinkModel">
@@ -69,7 +70,15 @@
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
-                        <TextBox Grid.Column="1" Text="{Binding Url}" PlaceholderText="{i18n:Tr UI_ChatUrlWatermark}" VerticalAlignment="Center"/>
+                        <!-- El ejemplo cambia con la plataforma: dice qué hay que pegar. -->
+                        <TextBox Grid.Column="1" Text="{Binding Url}" VerticalAlignment="Center">
+                            <TextBox.PlaceholderText>
+                                <MultiBinding Converter="{x:Static conv:ChatUrlHintConverter.Instance}">
+                                    <Binding Path="Platform"/>
+                                    <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                </MultiBinding>
+                            </TextBox.PlaceholderText>
+                        </TextBox>
                         <Button Grid.Column="2" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).ReLoginChatLinkCommand}" CommandParameter="{Binding}" IsVisible="{Binding UsaInicioDeSesion}" Content="{i18n:Tr UI_BtnReLogin}" Background="#313244" Foreground="White" Margin="5,0,0,0" ToolTip.Tip="{i18n:Tr UI_TooltipReLogin}"/>
                         <Button Grid.Column="3" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).ReconnectChatLinkCommand}" CommandParameter="{Binding}" Background="Transparent" Margin="5,0,0,0" ToolTip.Tip="{i18n:Tr UI_TooltipReconnect}">
                             <Image Classes="Icono" Source="/Assets/refresh.png"/>
@@ -202,6 +211,23 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                     </StackPanel>
+
+                    <!-- Filtro por tipo de nivel: clásicos, plataformas o los dos -->
+                    <TextBlock Text="{i18n:Tr UI_LevelTypeFilter}" Foreground="White" FontWeight="Bold" Margin="0,10,0,5"/>
+                    <ComboBox ItemsSource="{Binding AvailableLevelTypes}" SelectedItem="{Binding Settings.LevelTypeFilter}" Width="200">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock>
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{x:Static conv:EnumTranslatorConverter.Instance}">
+                                            <Binding/>
+                                            <Binding Source="{x:Static svc:I18nNotifier.Instance}" Path="LanguageTrigger"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
 
                     <!-- Lista negra y límite global -->
                     <Grid ColumnDefinitions="*, *" Margin="0,20,0,5">
@@ -352,6 +378,19 @@
                                 <TextBlock Text="{i18n:Tr UI_BtnInstallGeodeMod}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
+                    </StackPanel>
+
+                    <!-- Versión instalada y comprobación manual de actualizaciones (la automática
+                         se hace al arrancar). -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
+                        <Button Command="{Binding CheckAppUpdatesCommand}" Background="#313244" Foreground="White">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Classes="Icono" Source="/Assets/refresh.png"/>
+                                <TextBlock Text="{i18n:Tr UI_BtnCheckUpdates}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="{i18n:Tr UI_AppVersionLabel}" Foreground="#A6ADC8" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding VersionDelPrograma}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
